@@ -1,0 +1,27 @@
+# Node modules
+**/node_modules/
+
+# Environment files
+**/.env
+
+# Build folders
+**/.next/
+**/dist/
+**/build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Uploads (optional)
+server/uploads/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+
+# TypeScript
+*.tsbuildinfo
