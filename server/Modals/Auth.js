@@ -5,6 +5,10 @@ const userschema = mongoose.Schema({
   channelname: { type: String },
   description: { type: String },
   image: { type: String },
+  // free: 1 download/day | premium: 5/day | pro: unlimited
+  plan: { type: String, enum: ["free", "premium", "pro"], default: "free" },
+  planStartDate: { type: Date, default: null },
+  planExpiresAt: { type: Date, default: null },
   joinedon: { type: Date, default: Date.now },
 });
 

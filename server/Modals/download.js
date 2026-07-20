@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
-const watchlaterschema = mongoose.Schema(
+
+const downloadschema = mongoose.Schema(
   {
     viewer: {
       type: mongoose.Schema.Types.ObjectId,
@@ -12,9 +13,7 @@ const watchlaterschema = mongoose.Schema(
       required: true,
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-export default mongoose.model("watchlater", watchlaterschema);
+export default mongoose.model("download", downloadschema);

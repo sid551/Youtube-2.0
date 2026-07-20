@@ -112,8 +112,7 @@ const SearchResult = ({ query }: any) => {
                   href={`/channel/${video.uploader}`}
                   className="flex items-center gap-2 mb-2 hover:text-blue-600"
                 >
-                  <Avatar className="w-6h-6">
-                    <AvatarImage src="/placeholder.svg?height=24&width=24" />
+                  <Avatar className="w-6 h-6">
                     <AvatarFallback className="text-xs">
                       {video.videochanel[0]}
                     </AvatarFallback>

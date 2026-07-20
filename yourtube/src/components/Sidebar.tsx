@@ -1,4 +1,14 @@
-import { Home, Compass, PlaySquare, Clock, ThumbsUp, History, User, X } from "lucide-react";
+import {
+  Home,
+  Compass,
+  PlaySquare,
+  Clock,
+  ThumbsUp,
+  History,
+  User,
+  X,
+  Download,
+} from "lucide-react";
 import Link from "next/link";
 import React, { useState } from "react";
 import { Button } from "./ui/button";
@@ -26,9 +36,9 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           <Compass className="w-5 h-5 mr-3" /> Explore
         </Button>
       </Link>
-      <Link href="/subscriptions" onClick={onClose}>
+      <Link href="/plans" onClick={onClose}>
         <Button variant="ghost" className="w-full justify-start">
-          <PlaySquare className="w-5 h-5 mr-3" /> Subscriptions
+          <PlaySquare className="w-5 h-5 mr-3" /> Plans
         </Button>
       </Link>
 
@@ -49,6 +59,11 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               <Clock className="w-5 h-5 mr-3" /> Watch later
             </Button>
           </Link>
+          <Link href="/downloads" onClick={onClose}>
+            <Button variant="ghost" className="w-full justify-start">
+              <Download className="w-5 h-5 mr-3" /> Downloads
+            </Button>
+          </Link>
           {user?.channelname ? (
             <Link href={`/channel/${user._id}`} onClick={onClose}>
               <Button variant="ghost" className="w-full justify-start">
@@ -57,7 +72,15 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             </Link>
           ) : (
             <div className="px-2 py-1.5">
-              <Button variant="secondary" size="sm" className="w-full" onClick={() => { setisdialogeopen(true); onClose(); }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  setisdialogeopen(true);
+                  onClose();
+                }}
+              >
                 Create Channel
               </Button>
             </div>
@@ -95,7 +118,11 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
         </>
       )}
 
-      <Channeldialogue isopen={isdialogeopen} onclose={() => setisdialogeopen(false)} mode="create" />
+      <Channeldialogue
+        isopen={isdialogeopen}
+        onclose={() => setisdialogeopen(false)}
+        mode="create"
+      />
     </>
   );
 };

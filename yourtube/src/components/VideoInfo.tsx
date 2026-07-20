@@ -12,6 +12,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { useUser } from "@/lib/AuthContext";
 import axiosInstance from "@/lib/axiosinstance";
+import { toast } from "sonner";
 
 const VideoInfo = ({ video }: any) => {
   const [likes, setlikes] = useState(video.Like || 0);
@@ -21,13 +22,8 @@ const VideoInfo = ({ video }: any) => {
   const [showFullDescription, setShowFullDescription] = useState(false);
   const { user } = useUser();
   const [isWatchLater, setIsWatchLater] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
-  // const user: any = {
-  //   id: "1",
-  //   name: "John Doe",
-  //   email: "john@example.com",
-  //   image: "https://github.com/shadcn.png?height=32&width=32",
-  // };
   useEffect(() => {
     setlikes(video.Like || 0);
     setDislikes(video.Dislike || 0);
@@ -111,6 +107,37 @@ const VideoInfo = ({ video }: any) => {
       console.log(error);
     }
   };
+
+  const handleDownload = async () => {
+    if (!user) {
+      toast.error("Sign in to download videos");
+      return;
+    }
+    setIsDownloading(true);
+    try {
+      const res = await axiosInstance.post(
+        `/download/${video._id}`,
+        { userId: user._id },
+        { responseType: "blob" }
+      );
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${video.videotitle || "video"}.mp4`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success("Download started");
+    } catch (error: any) {
+      const msg =
+        error?.response?.data instanceof Blob
+          ? JSON.parse(await error.response.data.text()).message
+          : error?.response?.data?.message || "Download failed";
+      toast.error(msg);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">{video.videotitle}</h1>
@@ -128,29 +155,72 @@ const VideoInfo = ({ video }: any) => {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center bg-gray-100 rounded-full">
-            <Button variant="ghost" size="sm" className="rounded-l-full" onClick={handleLike}>
-              <ThumbsUp className={`w-5 h-5 mr-1 ${isLiked ? "fill-black text-black" : ""}`} />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-l-full"
+              onClick={handleLike}
+            >
+              <ThumbsUp
+                className={`w-5 h-5 mr-1 ${
+                  isLiked ? "fill-black text-black" : ""
+                }`}
+              />
               <span className="text-sm">{likes.toLocaleString()}</span>
             </Button>
             <div className="w-px h-6 bg-gray-300" />
-            <Button variant="ghost" size="sm" className="rounded-r-full" onClick={handleDislike}>
-              <ThumbsDown className={`w-5 h-5 mr-1 ${isDisliked ? "fill-black text-black" : ""}`} />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-r-full"
+              onClick={handleDislike}
+            >
+              <ThumbsDown
+                className={`w-5 h-5 mr-1 ${
+                  isDisliked ? "fill-black text-black" : ""
+                }`}
+              />
               <span className="text-sm">{dislikes.toLocaleString()}</span>
             </Button>
           </div>
-          <Button variant="ghost" size="sm" className={`bg-gray-100 rounded-full ${isWatchLater ? "text-primary" : ""}`} onClick={handleWatchLater}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`bg-gray-100 rounded-full ${
+              isWatchLater ? "text-primary" : ""
+            }`}
+            onClick={handleWatchLater}
+          >
             <Clock className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">{isWatchLater ? "Saved" : "Watch Later"}</span>
+            <span className="hidden sm:inline">
+              {isWatchLater ? "Saved" : "Watch Later"}
+            </span>
           </Button>
-          <Button variant="ghost" size="sm" className="bg-gray-100 rounded-full">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="bg-gray-100 rounded-full"
+          >
             <Share className="w-4 h-4 mr-1" />
             <span className="hidden sm:inline">Share</span>
           </Button>
-          <Button variant="ghost" size="sm" className="bg-gray-100 rounded-full">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="bg-gray-100 rounded-full"
+            onClick={handleDownload}
+            disabled={isDownloading}
+          >
             <Download className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Download</span>
+            <span className="hidden sm:inline">
+              {isDownloading ? "Downloading..." : "Download"}
+            </span>
           </Button>
-          <Button variant="ghost" size="icon" className="bg-gray-100 rounded-full">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="bg-gray-100 rounded-full"
+          >
             <MoreHorizontal className="w-5 h-5" />
           </Button>
         </div>

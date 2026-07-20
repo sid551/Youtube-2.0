@@ -5,13 +5,7 @@ import { Button } from "./ui/button";
 import { formatDistanceToNow } from "date-fns";
 import { useUser } from "@/lib/AuthContext";
 import axiosInstance from "@/lib/axiosinstance";
-import {
-  ThumbsUp,
-  ThumbsDown,
-  Flag,
-  Languages,
-  MapPin,
-} from "lucide-react";
+import { ThumbsUp, ThumbsDown, Flag, Languages, MapPin } from "lucide-react";
 
 interface Comment {
   _id: string;
@@ -28,25 +22,29 @@ interface Comment {
   flagged: boolean;
 }
 
-// --- Content moderation (client-side pre-check) ---
-const ABUSIVE_WORDS = ["badword1", "badword2", "spam", "idiot", "stupid", "hate"];
+// --- Client-side structural checks only (fast, no API) ---
+// Abusive word detection is handled server-side by bad-words filter
 const SPAM_PATTERN = /(.)\1{6,}/;
 const SPECIAL_CHAR_SPAM = /^[^a-zA-Z0-9\s]{4,}$/;
 
 const getBlockReason = (text: string): string | null => {
-  const lower = text.toLowerCase();
-  if (ABUSIVE_WORDS.some((w) => lower.includes(w))) return "abusive language";
   if (SPAM_PATTERN.test(text)) return "spam detected";
   if (SPECIAL_CHAR_SPAM.test(text.trim())) return "invalid comment format";
   return null;
 };
 
 // --- Google Translate unofficial API (better accuracy, no key needed) ---
-const translateText = async (text: string, sourceLang: string, targetLang: string): Promise<string> => {
+const translateText = async (
+  text: string,
+  sourceLang: string,
+  targetLang: string
+): Promise<string> => {
   const src = sourceLang && sourceLang !== "auto" ? sourceLang : "en";
   if (src === targetLang) return text;
   try {
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${src}&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${src}&tl=${targetLang}&dt=t&q=${encodeURIComponent(
+      text
+    )}`;
     const res = await fetch(url);
     const data = await res.json();
     // response is nested arrays: [[["translated","original",...],...],...]
@@ -203,7 +201,8 @@ const Comments = ({ videoId }: any) => {
           usercommented: user.name || "Anonymous",
           commentedon: new Date().toISOString(),
           language: detectLanguage(newComment),
-          location: showLocation && resolvedLocation ? resolvedLocation : undefined,
+          location:
+            showLocation && resolvedLocation ? resolvedLocation : undefined,
           likes: [],
           dislikes: [],
           reports: [],
@@ -238,9 +237,12 @@ const Comments = ({ videoId }: any) => {
     }
     setBlockError(null);
     try {
-      const res = await axiosInstance.post(`/comment/editcomment/${editingCommentId}`, {
-        commentbody: editText,
-      });
+      const res = await axiosInstance.post(
+        `/comment/editcomment/${editingCommentId}`,
+        {
+          commentbody: editText,
+        }
+      );
       if (res.data) {
         setComments((prev) =>
           prev.map((c) =>
@@ -269,7 +271,9 @@ const Comments = ({ videoId }: any) => {
   const handleLike = async (id: string) => {
     if (!user) return;
     try {
-      const res = await axiosInstance.post(`/comment/like/${id}`, { userId: user._id });
+      const res = await axiosInstance.post(`/comment/like/${id}`, {
+        userId: user._id,
+      });
       setComments((prev) =>
         prev.map((c) => {
           if (c._id !== id) return c;
@@ -277,7 +281,9 @@ const Comments = ({ videoId }: any) => {
           const alreadyLiked = c.likes.includes(uid);
           return {
             ...c,
-            likes: alreadyLiked ? c.likes.filter((l) => l !== uid) : [...c.likes, uid],
+            likes: alreadyLiked
+              ? c.likes.filter((l) => l !== uid)
+              : [...c.likes, uid],
             dislikes: c.dislikes.filter((d) => d !== uid),
           };
         })
@@ -298,7 +304,9 @@ const Comments = ({ videoId }: any) => {
           const alreadyDisliked = c.dislikes.includes(uid);
           return {
             ...c,
-            dislikes: alreadyDisliked ? c.dislikes.filter((d) => d !== uid) : [...c.dislikes, uid],
+            dislikes: alreadyDisliked
+              ? c.dislikes.filter((d) => d !== uid)
+              : [...c.dislikes, uid],
             likes: c.likes.filter((l) => l !== uid),
           };
         })
@@ -334,7 +342,12 @@ const Comments = ({ videoId }: any) => {
     }
   };
 
-  const handleTranslate = async (commentId: string, text: string, sourceLang: string, targetLang: string) => {
+  const handleTranslate = async (
+    commentId: string,
+    text: string,
+    sourceLang: string,
+    targetLang: string
+  ) => {
     const src = sourceLang || "en";
     // MyMemory requires two distinct languages
     if (src === targetLang) return;
@@ -369,9 +382,7 @@ const Comments = ({ videoId }: any) => {
               }}
               className="min-h-[80px] resize-none border-0 border-b-2 rounded-none focus-visible:ring-0"
             />
-            {blockError && (
-              <p className="text-xs text-red-500">{blockError}</p>
-            )}
+            {blockError && <p className="text-xs text-red-500">{blockError}</p>}
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer select-none">
                 <MapPin className="w-3 h-3" />
@@ -385,7 +396,9 @@ const Comments = ({ videoId }: any) => {
                   }}
                 />
                 Share country (optional)
-                {locationLoading && <span className="ml-1 text-gray-400">fetching...</span>}
+                {locationLoading && (
+                  <span className="ml-1 text-gray-400">fetching...</span>
+                )}
                 {showLocation && location && !locationLoading && (
                   <span className="ml-1 text-gray-400">· {location}</span>
                 )}
@@ -393,7 +406,10 @@ const Comments = ({ videoId }: any) => {
               <div className="flex gap-2">
                 <Button
                   variant="ghost"
-                  onClick={() => { setNewComment(""); setBlockError(null); }}
+                  onClick={() => {
+                    setNewComment("");
+                    setBlockError(null);
+                  }}
                   disabled={!newComment.trim()}
                 >
                   Cancel
@@ -419,7 +435,6 @@ const Comments = ({ videoId }: any) => {
           comments.map((c) => (
             <div key={c._id} className="flex gap-4">
               <Avatar className="w-10 h-10">
-                <AvatarImage src="/placeholder.svg?height=40&width=40" />
                 <AvatarFallback>{c.usercommented?.[0] || "U"}</AvatarFallback>
               </Avatar>
               <div className="flex-1">
@@ -450,12 +465,19 @@ const Comments = ({ videoId }: any) => {
                       <p className="text-xs text-red-500">{blockError}</p>
                     )}
                     <div className="flex gap-2 justify-end">
-                      <Button onClick={handleUpdateComment} disabled={!editText.trim()}>
+                      <Button
+                        onClick={handleUpdateComment}
+                        disabled={!editText.trim()}
+                      >
                         Save
                       </Button>
                       <Button
                         variant="ghost"
-                        onClick={() => { setEditingCommentId(null); setEditText(""); setBlockError(null); }}
+                        onClick={() => {
+                          setEditingCommentId(null);
+                          setEditText("");
+                          setBlockError(null);
+                        }}
                       >
                         Cancel
                       </Button>
@@ -466,7 +488,9 @@ const Comments = ({ videoId }: any) => {
                     <p className="text-sm">
                       {translated[c._id] || c.commentbody}
                       {translated[c._id] && (
-                        <span className="ml-2 text-xs text-gray-400 italic">(translated)</span>
+                        <span className="ml-2 text-xs text-gray-400 italic">
+                          (translated)
+                        </span>
                       )}
                     </p>
 
@@ -474,7 +498,11 @@ const Comments = ({ videoId }: any) => {
                     <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
                       {/* Like */}
                       <button
-                        className={`flex items-center gap-1 hover:text-blue-500 ${user && c.likes.includes(user._id) ? "text-blue-500" : ""}`}
+                        className={`flex items-center gap-1 hover:text-blue-500 ${
+                          user && c.likes.includes(user._id)
+                            ? "text-blue-500"
+                            : ""
+                        }`}
                         onClick={() => handleLike(c._id)}
                         title="Like"
                       >
@@ -484,24 +512,36 @@ const Comments = ({ videoId }: any) => {
 
                       {/* Dislike */}
                       <button
-                        className={`flex items-center gap-1 hover:text-orange-500 ${user && c.dislikes.includes(user._id) ? "text-orange-500" : ""}`}
+                        className={`flex items-center gap-1 hover:text-orange-500 ${
+                          user && c.dislikes.includes(user._id)
+                            ? "text-orange-500"
+                            : ""
+                        }`}
                         onClick={() => handleDislike(c._id)}
                         title="Dislike"
                       >
                         <ThumbsDown className="w-3.5 h-3.5" />
-                        {c.dislikes.length > 0 && <span>{c.dislikes.length}</span>}
+                        {c.dislikes.length > 0 && (
+                          <span>{c.dislikes.length}</span>
+                        )}
                       </button>
 
                       {/* Translate */}
                       <div className="relative">
                         <button
                           className="flex items-center gap-1 hover:text-green-500"
-                          onClick={() => setShowLangPicker(showLangPicker === c._id ? null : c._id)}
+                          onClick={() =>
+                            setShowLangPicker(
+                              showLangPicker === c._id ? null : c._id
+                            )
+                          }
                           title="Translate"
                         >
                           <Languages className="w-3.5 h-3.5" />
                           <span className="text-xs">Translate</span>
-                          {translating[c._id] && <span className="text-xs">...</span>}
+                          {translating[c._id] && (
+                            <span className="text-xs">...</span>
+                          )}
                         </button>
                         {showLangPicker === c._id && (
                           <>
@@ -511,12 +551,21 @@ const Comments = ({ videoId }: any) => {
                               onClick={() => setShowLangPicker(null)}
                             />
                             <div className="absolute z-20 bottom-full mb-1 left-0 bg-white dark:bg-gray-800 border rounded-lg shadow-lg w-40 py-1 text-xs max-h-52 overflow-y-auto">
-                              <p className="px-3 py-1 text-gray-400 font-medium border-b">Translate to</p>
+                              <p className="px-3 py-1 text-gray-400 font-medium border-b">
+                                Translate to
+                              </p>
                               {LANGUAGES.map((lang) => (
                                 <button
                                   key={lang.code}
                                   className="w-full text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                  onClick={() => handleTranslate(c._id, c.commentbody, c.language || "en", lang.code)}
+                                  onClick={() =>
+                                    handleTranslate(
+                                      c._id,
+                                      c.commentbody,
+                                      c.language || "en",
+                                      lang.code
+                                    )
+                                  }
                                 >
                                   {lang.label}
                                 </button>
@@ -527,7 +576,11 @@ const Comments = ({ videoId }: any) => {
                                   <button
                                     className="w-full text-left px-3 py-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
                                     onClick={() => {
-                                      setTranslated((prev) => { const n = { ...prev }; delete n[c._id]; return n; });
+                                      setTranslated((prev) => {
+                                        const n = { ...prev };
+                                        delete n[c._id];
+                                        return n;
+                                      });
                                       setShowLangPicker(null);
                                     }}
                                   >
@@ -541,31 +594,46 @@ const Comments = ({ videoId }: any) => {
                       </div>
 
                       {/* Report (only for other users' comments) */}
-                      {user && c.userid?.toString() !== user._id?.toString() && (
-                        <button
-                          className={`flex items-center gap-1 hover:text-red-500 ${reportSubmitted === c._id || c.reports.includes(user._id) ? "text-red-400" : ""}`}
-                          onClick={() => {
-                            if (reportSubmitted === c._id) return;
-                            setReportTarget(c._id);
-                          }}
-                          title="Report"
-                        >
-                          <Flag className="w-3.5 h-3.5" />
-                          {reportSubmitted === c._id && <span className="text-xs">Reported</span>}
-                        </button>
-                      )}
+                      {user &&
+                        c.userid?.toString() !== user._id?.toString() && (
+                          <button
+                            className={`flex items-center gap-1 hover:text-red-500 ${
+                              reportSubmitted === c._id ||
+                              c.reports.includes(user._id)
+                                ? "text-red-400"
+                                : ""
+                            }`}
+                            onClick={() => {
+                              if (reportSubmitted === c._id) return;
+                              setReportTarget(c._id);
+                            }}
+                            title="Report"
+                          >
+                            <Flag className="w-3.5 h-3.5" />
+                            {reportSubmitted === c._id && (
+                              <span className="text-xs">Reported</span>
+                            )}
+                          </button>
+                        )}
 
                       {/* Edit / Delete for own comments */}
-                      {user && c.userid?.toString() === user._id?.toString() && (
-                        <>
-                          <button className="hover:text-blue-500" onClick={() => handleEdit(c)}>
-                            Edit
-                          </button>
-                          <button className="hover:text-red-500" onClick={() => handleDelete(c._id)}>
-                            Delete
-                          </button>
-                        </>
-                      )}
+                      {user &&
+                        c.userid?.toString() === user._id?.toString() && (
+                          <>
+                            <button
+                              className="hover:text-blue-500"
+                              onClick={() => handleEdit(c)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="hover:text-red-500"
+                              onClick={() => handleDelete(c._id)}
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
                     </div>
                   </>
                 )}
@@ -580,7 +648,11 @@ const Comments = ({ videoId }: any) => {
         <>
           <div
             className="fixed inset-0 z-30 bg-black/40"
-            onClick={() => { setReportTarget(null); setSelectedReason(null); setCustomReason(""); }}
+            onClick={() => {
+              setReportTarget(null);
+              setSelectedReason(null);
+              setCustomReason("");
+            }}
           />
           <div className="fixed z-40 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-900 rounded-xl shadow-xl w-80 p-5">
             <h3 className="text-base font-semibold mb-1">Report comment</h3>
@@ -592,9 +664,10 @@ const Comments = ({ videoId }: any) => {
                 <div key={r.id}>
                   <button
                     className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors
-                      ${selectedReason === r.id
-                        ? "bg-gray-100 dark:bg-gray-800 font-medium"
-                        : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                      ${
+                        selectedReason === r.id
+                          ? "bg-gray-100 dark:bg-gray-800 font-medium"
+                          : "hover:bg-gray-100 dark:hover:bg-gray-800"
                       }`}
                     onClick={() => {
                       if (r.id === "other") {
@@ -619,11 +692,19 @@ const Comments = ({ videoId }: any) => {
                         onChange={(e) => setCustomReason(e.target.value)}
                       />
                       <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-400">{customReason.length}/200</span>
+                        <span className="text-xs text-gray-400">
+                          {customReason.length}/200
+                        </span>
                         <button
                           disabled={!customReason.trim()}
                           className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg disabled:opacity-40 hover:bg-red-700 transition-colors"
-                          onClick={() => handleReport(reportTarget, "other", customReason.trim())}
+                          onClick={() =>
+                            handleReport(
+                              reportTarget,
+                              "other",
+                              customReason.trim()
+                            )
+                          }
                         >
                           Submit report
                         </button>
@@ -635,7 +716,11 @@ const Comments = ({ videoId }: any) => {
             </div>
             <button
               className="mt-3 w-full text-center text-xs text-gray-400 hover:text-gray-600"
-              onClick={() => { setReportTarget(null); setSelectedReason(null); setCustomReason(""); }}
+              onClick={() => {
+                setReportTarget(null);
+                setSelectedReason(null);
+                setCustomReason("");
+              }}
             >
               Cancel
             </button>

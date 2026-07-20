@@ -1,23 +1,47 @@
 import comment from "../Modals/comment.js";
 import mongoose from "mongoose";
+import { Filter } from "bad-words";
 
-// --- Content moderation ---
-const ABUSIVE_WORDS = [
-  "badword1",
-  "badword2",
-  "spam",
+// bad-words filter with built-in dictionary (~1400 words) + our extras
+const filter = new Filter();
+filter.addWords(
+  "kys",
+  "kill yourself",
+  "go die",
+  "i will kill",
+  "i'll kill",
+  "gonna kill",
+  "i will hurt",
+  "gonna hurt",
+  "i will find you",
+  "mofo",
+  "dumbass",
+  "jackass",
+  "dipshit",
+  "a55hole",
+  "sh1t",
+  "b1tch",
+  "c0ck",
+  "wh0re",
+  "n!gger",
+  "ret*rd",
+  "f u c k",
   "idiot",
-  "stupid",
-  "hate",
-];
-const SPAM_PATTERN = /(.)\1{6,}/; // same char repeated 7+ times
-const SPECIAL_CHAR_SPAM = /^[^a-zA-Z0-9\s]{4,}$/; // only special chars, 4+
+  "moron",
+  "imbecile",
+  "loser",
+  "hate you"
+);
 
-const isBlocked = (text) => {
-  const lower = text.toLowerCase();
-  if (ABUSIVE_WORDS.some((w) => lower.includes(w))) return "abusive";
+// --- Structural spam checks ---
+const SPAM_PATTERN = /(.)\1{6,}/;
+const SPECIAL_CHAR_SPAM = /^[^a-zA-Z0-9\s]{4,}$/;
+
+// --- Combined moderation (fully local, no network) ---
+const moderateComment = (text) => {
   if (SPAM_PATTERN.test(text)) return "spam";
-  if (SPECIAL_CHAR_SPAM.test(text.trim())) return "special_char_spam";
+  if (SPECIAL_CHAR_SPAM.test(text.trim())) return "invalid comment format";
+  if (filter.isProfane(text)) return "abusive language";
   return null;
 };
 
@@ -25,7 +49,7 @@ const isBlocked = (text) => {
 export const postcomment = async (req, res) => {
   const { commentbody, language = "en", ...rest } = req.body;
 
-  const blocked = isBlocked(commentbody || "");
+  const blocked = moderateComment(commentbody || "");
   if (blocked) {
     return res.status(400).json({ blocked: true, reason: blocked });
   }
@@ -57,9 +81,8 @@ export const getallcomment = async (req, res) => {
 // --- Delete comment ---
 export const deletecomment = async (req, res) => {
   const { id: _id } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(_id)) {
+  if (!mongoose.Types.ObjectId.isValid(_id))
     return res.status(404).send("comment unavailable");
-  }
   try {
     await comment.findByIdAndDelete(_id);
     return res.status(200).json({ comment: true });
@@ -73,13 +96,14 @@ export const deletecomment = async (req, res) => {
 export const editcomment = async (req, res) => {
   const { id: _id } = req.params;
   const { commentbody } = req.body;
-  if (!mongoose.Types.ObjectId.isValid(_id)) {
+  if (!mongoose.Types.ObjectId.isValid(_id))
     return res.status(404).send("comment unavailable");
-  }
-  const blocked = isBlocked(commentbody || "");
+
+  const blocked = moderateComment(commentbody || "");
   if (blocked) {
     return res.status(400).json({ blocked: true, reason: blocked });
   }
+
   try {
     const updated = await comment.findByIdAndUpdate(
       _id,
@@ -110,7 +134,7 @@ export const likecomment = async (req, res) => {
       found.likes.pull(uid);
     } else {
       found.likes.addToSet(uid);
-      found.dislikes.pull(uid); // remove dislike if switching
+      found.dislikes.pull(uid);
     }
     await found.save();
     return res
@@ -139,7 +163,7 @@ export const dislikecomment = async (req, res) => {
       found.dislikes.pull(uid);
     } else {
       found.dislikes.addToSet(uid);
-      found.likes.pull(uid); // remove like if switching
+      found.likes.pull(uid);
     }
     await found.save();
     return res
