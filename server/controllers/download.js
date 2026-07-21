@@ -105,7 +105,7 @@ export const getQuota = async (req, res) => {
 export const updatePlan = async (req, res) => {
   const { userId } = req.params;
   const { plan } = req.body;
-  if (!["free", "premium", "pro"].includes(plan))
+  if (!["free", "bronze", "silver", "gold"].includes(plan))
     return res.status(400).json({ message: "Invalid plan" });
   try {
     const now = new Date();

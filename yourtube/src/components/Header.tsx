@@ -30,8 +30,9 @@ import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 
 const PLAN_BADGE: Record<string, { label: string; className: string }> = {
-  premium: { label: "Premium", className: "bg-blue-100 text-blue-700" },
-  pro: { label: "Pro", className: "bg-purple-100 text-purple-700" },
+  bronze: { label: "Bronze", className: "bg-amber-100 text-amber-800" },
+  silver: { label: "Silver", className: "bg-slate-100 text-slate-700" },
+  gold: { label: "Gold", className: "bg-yellow-100 text-yellow-700" },
 };
 
 interface HeaderProps {
