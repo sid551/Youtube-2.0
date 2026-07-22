@@ -47,7 +47,14 @@ const moderateComment = (text) => {
 
 // --- Post comment ---
 export const postcomment = async (req, res) => {
-  const { commentbody, language = "en", ...rest } = req.body;
+  const { videoid, userid, commentbody, language = "en", ...rest } = req.body;
+
+  if (
+    !mongoose.Types.ObjectId.isValid(videoid) ||
+    !mongoose.Types.ObjectId.isValid(userid)
+  ) {
+    return res.status(400).json({ message: "Invalid video or user ID" });
+  }
 
   const blocked = moderateComment(commentbody || "");
   if (blocked) {
@@ -55,7 +62,13 @@ export const postcomment = async (req, res) => {
   }
 
   try {
-    const newComment = new comment({ ...rest, commentbody, language });
+    const newComment = new comment({
+      ...rest,
+      videoid,
+      userid,
+      commentbody,
+      language,
+    });
     await newComment.save();
     return res.status(200).json({ comment: true, data: newComment });
   } catch (error) {

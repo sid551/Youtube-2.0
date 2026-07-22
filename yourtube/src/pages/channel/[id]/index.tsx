@@ -1,71 +1,73 @@
 import ChannelHeader from "@/components/ChannelHeader";
 import Channeltabs from "@/components/Channeltabs";
 import ChannelVideos from "@/components/ChannelVideos";
-import VideoUploader from "@/components/VideoUploader";
 import { useUser } from "@/lib/AuthContext";
-import { notFound } from "next/navigation";
+import axiosInstance from "@/lib/axiosinstance";
 import { useRouter } from "next/router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 
-const index = () => {
+const ChannelPage = () => {
   const router = useRouter();
-  const { id } = router.query;
   const { user } = useUser();
-  // const user: any = {
-  //   id: "1",
-  //   name: "John Doe",
-  //   email: "john@example.com",
-  //   image: "https://github.com/shadcn.png?height=32&width=32",
-  // };
-  try {
-    let channel = user;
-   
-    const videos = [
-      {
-        _id: "1",
-        videotitle: "Amazing Nature Documentary",
-        filename: "nature-doc.mp4",
-        filetype: "video/mp4",
-        filepath: "/videos/nature-doc.mp4",
-        filesize: "500MB",
-        videochanel: "Nature Channel",
-        Like: 1250,
-        views: 45000,
-        uploader: "nature_lover",
-        createdAt: new Date().toISOString(),
-      },
-      {
-        _id: "2",
-        videotitle: "Cooking Tutorial: Perfect Pasta",
-        filename: "pasta-tutorial.mp4",
-        filetype: "video/mp4",
-        filepath: "/videos/pasta-tutorial.mp4",
-        filesize: "300MB",
-        videochanel: "Chef's Kitchen",
-        Like: 890,
-        views: 23000,
-        uploader: "chef_master",
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-      },
-    ];
+
+  const [channel, setChannel] = useState<any>(null);
+  const [videos, setVideos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchedId, setFetchedId] = useState<string>("");
+
+  useEffect(() => {
+    // id comes from router.query — it is a string only after hydration
+    const id = typeof router.query.id === "string" ? router.query.id : "";
+
+    // Don't fetch if id isn't ready yet, or we already fetched for this id
+    if (!id || id === fetchedId) return;
+
+    setFetchedId(id);
+    setLoading(true);
+    setChannel(null);
+    setVideos([]);
+
+    const fetchChannel = async () => {
+      try {
+        const [channelRes, videosRes] = await Promise.all([
+          axiosInstance.get(`/user/${id}`),
+          axiosInstance.get("/video/getall"),
+        ]);
+        setChannel(channelRes.data);
+        setVideos(videosRes.data.filter((v: any) => v.uploader === id));
+      } catch (error: any) {
+        console.error("Channel fetch failed:", error?.response?.status, id);
+        setChannel(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchChannel();
+  }, [router.query.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Still waiting for router to populate query
+  if (!router.query.id || loading) {
+    return <div className="p-8 text-center text-gray-500">Loading...</div>;
+  }
+
+  if (!channel) {
     return (
-      <div className="flex-1 min-h-screen bg-white">
-        <div className="max-w-full mx-auto">
-          <ChannelHeader channel={channel} user={user} />
-          <Channeltabs />
-          <div className="px-4 pb-8">
-            <VideoUploader channelId={id} channelName={channel?.channelname} />
-          </div>
-          <div className="px-4 pb-8">
-            <ChannelVideos videos={videos} />
-          </div>
+      <div className="p-8 text-center text-gray-500">Channel not found</div>
+    );
+  }
+
+  return (
+    <div className="flex-1 min-h-screen bg-white">
+      <div className="max-w-full mx-auto">
+        <ChannelHeader channel={channel} user={user} />
+        <Channeltabs />
+        <div className="px-4 pb-8">
+          <ChannelVideos videos={videos} />
         </div>
       </div>
-    );
-  } catch (error) {
-    console.error("Error fetching channel data:", error);
-   
-  }
+    </div>
+  );
 };
 
-export default index;
+export default ChannelPage;

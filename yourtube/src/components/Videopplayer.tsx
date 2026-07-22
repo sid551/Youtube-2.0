@@ -17,7 +17,9 @@ export default function VideoPlayer({ video }: VideoPlayerProps) {
     <div className="aspect-video bg-black rounded-lg overflow-hidden">
       <video ref={videoRef} className="w-full h-full" controls>
         <source
-          src={`${process.env.BACKEND_URL}/${video?.filepath}`}
+          src={`${
+            process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"
+          }/${video?.filepath}`}
           type="video/mp4"
         />
         Your browser does not support the video tag.

@@ -3,6 +3,7 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import users from "../Modals/Auth.js";
+import video from "../Modals/video.js";
 
 // Plan feature definitions (single source of truth)
 export const PLAN_FEATURES = {
@@ -133,14 +134,109 @@ const sendInvoiceEmail = async ({
   });
 };
 
+// Helper to calculate time-based theme in Indian Standard Time (IST, UTC+5:30)
+// If login time is between 10:00 AM and 12:00 PM IST (inclusive), theme is "light", otherwise "dark".
+export const calculateIstTimeBasedTheme = () => {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(new Date());
+  const hour = parseInt(parts.find((p) => p.type === "hour")?.value || "0", 10);
+  const minute = parseInt(
+    parts.find((p) => p.type === "minute")?.value || "0",
+    10
+  );
+  const totalMinutes = hour * 60 + minute;
+
+  // 10:00 AM IST = 600 minutes, 12:00 PM IST = 720 minutes
+  const isLightTime = totalMinutes >= 600 && totalMinutes <= 720;
+  return isLightTime ? "light" : "dark";
+};
+
+// Helper to parse Device info (Browser + OS)
+const parseDeviceInfo = (req) => {
+  const ua = req.headers["user-agent"] || "";
+  const bodyDevice = req.body.device || {};
+
+  let browser = bodyDevice.browser || "Chrome";
+  let os = bodyDevice.os || "Windows";
+
+  if (!bodyDevice.browser) {
+    if (ua.includes("Firefox")) browser = "Firefox";
+    else if (ua.includes("Edg")) browser = "Edge";
+    else if (ua.includes("Safari") && !ua.includes("Chrome")) browser = "Safari";
+    else if (ua.includes("Opera") || ua.includes("OPR")) browser = "Opera";
+    else if (ua.includes("Chrome")) browser = "Chrome";
+  }
+
+  if (!bodyDevice.os) {
+    if (ua.includes("Windows")) os = "Windows";
+    else if (ua.includes("Mac OS") || ua.includes("Macintosh")) os = "Mac OS";
+    else if (ua.includes("Android")) os = "Android";
+    else if (ua.includes("iPhone") || ua.includes("iPad")) os = "iOS";
+    else if (ua.includes("Linux")) os = "Linux";
+  }
+
+  return {
+    browser,
+    os,
+    userAgent: ua.slice(0, 150),
+  };
+};
+
+// Helper to parse Location info (City + State + Country)
+const parseLocationInfo = (req) => {
+  const bodyLoc = req.body.location || {};
+  return {
+    city: bodyLoc.city || "Mumbai",
+    state: bodyLoc.state || "Maharashtra",
+    country: bodyLoc.country || "India",
+  };
+};
+
 export const login = async (req, res) => {
   const { email, name, image } = req.body;
   try {
+    const calculatedTheme = calculateIstTimeBasedTheme();
+    const currentDevice = parseDeviceInfo(req);
+    const currentLocation = parseLocationInfo(req);
+
     const existingUser = await users.findOne({ email });
     if (!existingUser) {
-      const newUser = await users.create({ email, name, image });
+      const newUser = await users.create({
+        email,
+        name,
+        image,
+        theme: calculatedTheme,
+        themePreference: calculatedTheme,
+        lastDevice: currentDevice,
+        lastLocation: currentLocation,
+      });
       return res.status(201).json({ result: newUser });
     }
+
+    let modified = false;
+
+    // Check saved themePreference or theme
+    const activeThemePref = existingUser.themePreference || existingUser.theme;
+    if (!activeThemePref) {
+      existingUser.theme = calculatedTheme;
+      existingUser.themePreference = calculatedTheme;
+      modified = true;
+    } else {
+      if (!existingUser.themePreference) {
+        existingUser.themePreference = activeThemePref;
+        modified = true;
+      }
+      if (!existingUser.theme) {
+        existingUser.theme = activeThemePref;
+        modified = true;
+      }
+    }
+
     // Auto-expire plan if past expiry date
     if (
       existingUser.plan !== "free" &&
@@ -150,11 +246,137 @@ export const login = async (req, res) => {
       existingUser.plan = "free";
       existingUser.planStartDate = null;
       existingUser.planExpiresAt = null;
-      await existingUser.save();
+      modified = true;
     }
-    return res.status(200).json({ result: existingUser });
+
+    // Security Verification: Device & Location Check
+    const hasDeviceRecord =
+      existingUser.lastDevice?.browser && existingUser.lastDevice?.os;
+    const hasLocationRecord = existingUser.lastLocation?.city;
+
+    if (!hasDeviceRecord || !hasLocationRecord) {
+      // First time recording security info -> save & login immediately
+      existingUser.lastDevice = currentDevice;
+      existingUser.lastLocation = currentLocation;
+      await existingUser.save();
+      return res.status(200).json({ result: existingUser });
+    }
+
+    // Compare current vs last recorded device and location
+    const deviceMatches =
+      existingUser.lastDevice.browser.toLowerCase() ===
+        currentDevice.browser.toLowerCase() &&
+      existingUser.lastDevice.os.toLowerCase() ===
+        currentDevice.os.toLowerCase();
+
+    const locationMatches =
+      existingUser.lastLocation.city.toLowerCase() ===
+      currentLocation.city.toLowerCase();
+
+    if (deviceMatches && locationMatches) {
+      // Both match -> Normal Login
+      if (modified) await existingUser.save();
+      return res.status(200).json({ result: existingUser });
+    }
+
+    // Mismatch detected -> Unusual Login Security Trigger (Generate 6-digit OTP)
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    existingUser.otp = {
+      code: otpCode,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 mins
+    };
+    await existingUser.save();
+
+    console.log(`[SECURITY ALERT] OTP for ${email}: ${otpCode}`);
+
+    return res.status(200).json({
+      requiresOtp: true,
+      email: existingUser.email,
+      otp: otpCode,
+      device: currentDevice,
+      location: currentLocation,
+      message: `Unusual login detected (${currentDevice.browser} on ${currentDevice.os} from ${currentLocation.city}). A 6-digit OTP code has been generated.`,
+    });
   } catch (error) {
     console.error("Login error:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+// POST /user/verify-otp — verify OTP and complete login
+export const verifyOtp = async (req, res) => {
+  const { email, otp, device, location } = req.body;
+
+  if (!email || !otp) {
+    return res.status(400).json({ message: "Email and OTP code are required" });
+  }
+
+  try {
+    const user = await users.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (
+      !user.otp ||
+      !user.otp.code ||
+      user.otp.code !== otp.trim() ||
+      !user.otp.expiresAt ||
+      new Date() > new Date(user.otp.expiresAt)
+    ) {
+      return res.status(400).json({ message: "Invalid or expired OTP code" });
+    }
+
+    // OTP is valid! Clear OTP and update stored device & location info
+    user.otp = { code: null, expiresAt: null };
+    if (device) user.lastDevice = device;
+    if (location) user.lastLocation = location;
+    await user.save();
+
+    return res.status(200).json({
+      result: user,
+      message: "Security verification successful!",
+    });
+  } catch (error) {
+    console.error("verifyOtp error:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+// PATCH /user/theme/:id — explicit theme update or recalculation reset
+export const updateTheme = async (req, res) => {
+  const { id } = req.params;
+  const { theme, themePreference, reset } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  try {
+    let targetTheme = themePreference || theme;
+    if (reset || !targetTheme) {
+      targetTheme = calculateIstTimeBasedTheme();
+    } else if (!["light", "dark"].includes(targetTheme)) {
+      return res.status(400).json({ message: "Invalid theme preference" });
+    }
+
+    const updatedUser = await users.findByIdAndUpdate(
+      id,
+      { $set: { theme: targetTheme, themePreference: targetTheme } },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json({
+      theme: updatedUser.theme,
+      themePreference: updatedUser.themePreference,
+      message: "Theme preference saved successfully",
+    });
+  } catch (error) {
+    console.error("updateTheme error:", error);
     return res.status(500).json({ message: "Something went wrong" });
   }
 };
@@ -243,12 +465,22 @@ export const verifyPayment = async (req, res) => {
   }
 };
 
+// Helper to find channel user by ObjectId or channelname/name
+const findChannelUser = async (identifier) => {
+  if (!identifier || identifier === "undefined") return null;
+  if (mongoose.Types.ObjectId.isValid(identifier)) {
+    const userById = await users.findById(identifier);
+    if (userById) return userById;
+  }
+  return await users.findOne({
+    $or: [{ channelname: identifier }, { name: identifier }],
+  });
+};
+
 export const getUser = async (req, res) => {
   const { id } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(id))
-    return res.status(404).json({ message: "User not found" });
   try {
-    const user = await users.findById(id);
+    const user = await findChannelUser(id);
     if (!user) return res.status(404).json({ message: "User not found" });
     return res.status(200).json(user);
   } catch (error) {
@@ -310,3 +542,111 @@ export const updatePlan = async (req, res) => {
     return res.status(500).json({ message: "Something went wrong" });
   }
 };
+
+// POST /user/subscribe/:channelId — toggle subscribe/unsubscribe
+export const toggleSubscribe = async (req, res) => {
+  const { channelId } = req.params;
+  const { userId } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ message: "Invalid user id" });
+  }
+
+  try {
+    const channel = await findChannelUser(channelId);
+    if (!channel) return res.status(404).json({ message: "Channel not found" });
+
+    const targetId = channel._id.toString();
+
+    if (targetId === userId.toString()) {
+      return res.status(400).json({ message: "Cannot subscribe to yourself" });
+    }
+
+    const alreadySubscribed = (channel.subscribers || []).some(
+      (id) => id.toString() === userId.toString()
+    );
+
+    if (alreadySubscribed) {
+      // Remove subscriber from target channel
+      await users.findByIdAndUpdate(targetId, {
+        $pull: { subscribers: userId },
+      });
+      // Remove target channel from subscriber's document
+      await users.findByIdAndUpdate(userId, {
+        $pull: { subscribedChannels: targetId },
+      });
+    } else {
+      // Add subscriber to target channel
+      await users.findByIdAndUpdate(targetId, {
+        $addToSet: { subscribers: userId },
+      });
+      // Add target channel to subscriber's document
+      await users.findByIdAndUpdate(userId, {
+        $addToSet: { subscribedChannels: targetId },
+      });
+    }
+
+    const updated = await users.findById(targetId).select("subscribers");
+    return res.status(200).json({
+      subscribed: !alreadySubscribed,
+      subscriberCount: updated.subscribers ? updated.subscribers.length : 0,
+      channelId: targetId,
+    });
+  } catch (error) {
+    console.error("Subscribe error:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+// GET /user/subscribe/status/:channelId?userId=xxx
+export const getSubscribeStatus = async (req, res) => {
+  const { channelId } = req.params;
+  const { userId } = req.query;
+
+  try {
+    const channel = await findChannelUser(channelId);
+    if (!channel) return res.status(404).json({ message: "Channel not found" });
+
+    const subscribers = channel.subscribers || [];
+    const subscribed = userId
+      ? subscribers.some((id) => id.toString() === userId.toString())
+      : false;
+
+    return res.status(200).json({
+      subscribed,
+      subscriberCount: subscribers.length,
+      channelId: channel._id.toString(),
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+// GET /user/subscriptions/:userId — get channels user is subscribed to and their videos
+export const getUserSubscriptions = async (req, res) => {
+  const { userId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ message: "Invalid user id" });
+  }
+  try {
+    const subscribedChannels = await users
+      .find({ subscribers: userId })
+      .select("_id name channelname image description subscribers");
+
+    const channelIds = subscribedChannels.map((ch) => ch._id.toString());
+
+    const channelVideos = await video
+      .find({ uploader: { $in: channelIds } })
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      channels: subscribedChannels,
+      videos: channelVideos,
+    });
+  } catch (error) {
+    console.error("getUserSubscriptions error:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+

@@ -16,7 +16,7 @@ const index = () => {
           </div>
         )}
         <Suspense fallback={<div>Loading search results...</div>}>
-          <SearchResult query={q || ""} />
+          <SearchResult query={typeof q === "string" ? q : ""} />
         </Suspense>
       </div>
     </div>

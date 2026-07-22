@@ -8,6 +8,7 @@ import {
   User,
   X,
   Download,
+  UserCheck,
 } from "lucide-react";
 import Link from "next/link";
 import React, { useState } from "react";
@@ -34,6 +35,11 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       <Link href="/explore" onClick={onClose}>
         <Button variant="ghost" className="w-full justify-start">
           <Compass className="w-5 h-5 mr-3" /> Explore
+        </Button>
+      </Link>
+      <Link href="/subscriptions" onClick={onClose}>
+        <Button variant="ghost" className="w-full justify-start">
+          <UserCheck className="w-5 h-5 mr-3" /> Subscriptions
         </Button>
       </Link>
       <Link href="/plans" onClick={onClose}>

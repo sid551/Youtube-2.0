@@ -137,9 +137,17 @@ export default function DownloadsContent() {
                     {item.videoid.videotitle}
                   </h3>
                 </Link>
-                <p className="text-sm text-gray-600">
-                  {item.videoid.videochanel}
-                </p>
+                {item.videoid?.uploader && item.videoid.uploader !== "undefined" ? (
+                  <Link href={`/channel/${item.videoid.uploader}`}>
+                    <p className="text-sm text-gray-600 hover:underline hover:text-black">
+                      {item.videoid.videochanel}
+                    </p>
+                  </Link>
+                ) : (
+                  <p className="text-sm text-gray-600">
+                    {item.videoid.videochanel}
+                  </p>
+                )}
                 <p className="text-xs text-gray-500 mt-1">
                   Downloaded {formatDistanceToNow(new Date(item.createdAt))} ago
                 </p>

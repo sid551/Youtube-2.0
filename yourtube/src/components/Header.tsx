@@ -8,6 +8,10 @@ import {
   VideoIcon,
   X,
   Upload,
+  Camera,
+  Sun,
+  Moon,
+  RotateCcw,
 } from "lucide-react";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "./ui/button";
@@ -23,6 +27,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import Channeldialogue from "./channeldialogue";
 import VideoUploader from "./VideoUploader";
+import CameraRecorder from "./CameraRecorder";
 import { useRouter } from "next/router";
 import { useUser } from "@/lib/AuthContext";
 import axiosInstance from "@/lib/axiosinstance";
@@ -30,9 +35,21 @@ import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 
 const PLAN_BADGE: Record<string, { label: string; className: string }> = {
-  bronze: { label: "Bronze", className: "bg-amber-100 text-amber-800" },
-  silver: { label: "Silver", className: "bg-slate-100 text-slate-700" },
-  gold: { label: "Gold", className: "bg-yellow-100 text-yellow-700" },
+  bronze: {
+    label: "Bronze",
+    className:
+      "bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-700",
+  },
+  silver: {
+    label: "Silver",
+    className:
+      "bg-slate-200 text-slate-900 border border-slate-300 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600",
+  },
+  gold: {
+    label: "Gold",
+    className:
+      "bg-yellow-100 text-yellow-900 border border-yellow-300 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-700",
+  },
 };
 
 interface HeaderProps {
@@ -40,13 +57,15 @@ interface HeaderProps {
 }
 
 const Header = ({ onMenuClick }: HeaderProps) => {
-  const { user, logout, handlegooglesignin } = useUser();
+  const { user, theme, updateTheme, resetTheme, logout, handlegooglesignin } =
+    useUser();
   const [searchQuery, setSearchQuery] = useState("");
   const [isChannelDialogOpen, setIsChannelDialogOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
 
   // Upload modal
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showRecordModal, setShowRecordModal] = useState(false);
 
   // Notifications
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -155,8 +174,8 @@ const Header = ({ onMenuClick }: HeaderProps) => {
     }
   };
 
-  // ── Video upload button ────────────────────────────────────────
-  const handleVideoButtonClick = () => {
+  // ── Video upload / record button ──────────────────────────────
+  const openUpload = () => {
     if (!user) {
       toast.error("Sign in to upload videos");
       return;
@@ -167,6 +186,19 @@ const Header = ({ onMenuClick }: HeaderProps) => {
       return;
     }
     setShowUploadModal(true);
+  };
+
+  const openRecord = () => {
+    if (!user) {
+      toast.error("Sign in to record videos");
+      return;
+    }
+    if (!user.channelname) {
+      setIsChannelDialogOpen(true);
+      toast("Create a channel first to record videos");
+      return;
+    }
+    setShowRecordModal(true);
   };
 
   return (
@@ -289,18 +321,47 @@ const Header = ({ onMenuClick }: HeaderProps) => {
             <Search className="w-5 h-5" />
           </Button>
 
+          {/* Direct Navbar Light/Dark Theme Preference Toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => updateTheme(theme === "dark" ? "light" : "dark")}
+            title={
+              theme === "dark"
+                ? "Switch to Light themePreference"
+                : "Switch to Dark themePreference"
+            }
+          >
+            {theme === "dark" ? (
+              <Sun className="w-5 h-5 text-amber-400" />
+            ) : (
+              <Moon className="w-5 h-5 text-slate-700" />
+            )}
+          </Button>
+
           {user ? (
             <>
-              {/* Upload video button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="hidden sm:flex"
-                title="Upload video"
-                onClick={handleVideoButtonClick}
-              >
-                <VideoIcon className="w-5 h-5" />
-              </Button>
+              {/* Upload/Record video button */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hidden sm:flex"
+                    title="Create"
+                  >
+                    <VideoIcon className="w-5 h-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={openUpload}>
+                    <Upload className="w-4 h-4 mr-2" /> Upload video
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={openRecord}>
+                    <Camera className="w-4 h-4 mr-2" /> Record video
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* Notifications bell */}
               <div className="relative hidden sm:block" ref={notifRef}>
@@ -435,17 +496,37 @@ const Header = ({ onMenuClick }: HeaderProps) => {
                     <Link href="/downloads">Downloads</Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() =>
+                      updateTheme(theme === "dark" ? "light" : "dark")
+                    }
+                  >
+                    {theme === "dark" ? (
+                      <Sun className="w-4 h-4 mr-2" />
+                    ) : (
+                      <Moon className="w-4 h-4 mr-2" />
+                    )}
+                    Appearance: {theme === "dark" ? "Dark" : "Light"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={resetTheme}>
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Reset to IST time theme
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={logout}>Sign out</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
           ) : (
             <Button
-              className="flex items-center gap-2 text-sm px-3"
+              variant="outline"
+              className="flex items-center gap-2 text-sm px-3.5 rounded-full border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/60 dark:hover:text-blue-300"
               onClick={handlegooglesignin}
             >
-              <User className="w-4 h-4" />
-              <span className="hidden sm:inline">Sign in</span>
+              <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span className="hidden sm:inline font-medium text-blue-600 dark:text-blue-400">
+                Sign in
+              </span>
             </Button>
           )}
         </div>
@@ -480,6 +561,35 @@ const Header = ({ onMenuClick }: HeaderProps) => {
                 channelId={user?._id}
                 channelName={user?.channelname}
                 onSuccess={() => setShowUploadModal(false)}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Record modal */}
+      {showRecordModal && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/50"
+            onClick={() => setShowRecordModal(false)}
+          />
+          <div className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h2 className="font-semibold text-base">Record video</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowRecordModal(false)}
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+            <div className="p-5">
+              <CameraRecorder
+                channelId={user?._id}
+                channelName={user?.channelname}
+                onSuccess={() => setShowRecordModal(false)}
               />
             </div>
           </div>

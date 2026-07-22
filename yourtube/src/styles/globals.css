@@ -4,38 +4,33 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: #ffffff;
+  --foreground: #0f0f0f;
   --radius: 0.625rem;
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --card: #ffffff;
+  --card-foreground: #0f0f0f;
+  --popover: #ffffff;
+  --popover-foreground: #0f0f0f;
+  --primary: #0f0f0f;
+  --primary-foreground: #ffffff;
+  --secondary: #f2f2f2;
+  --secondary-foreground: #0f0f0f;
+  --muted: #f2f2f2;
+  --muted-foreground: #606060;
+  --accent: #f2f2f2;
+  --accent-foreground: #0f0f0f;
+  --destructive: #cc0000;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #909090;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f0f0f;
+  --sidebar-primary: #0f0f0f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f2f2f2;
+  --sidebar-accent-foreground: #0f0f0f;
+  --sidebar-border: #e5e5e5;
+  --sidebar-ring: #909090;
 }
 
 @theme inline {
@@ -51,11 +46,6 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -78,51 +68,179 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+/* ── Dark Mode Class Overrides ── */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #0f0f0f;
+  --foreground: #f1f1f1;
+  --card: #181818;
+  --card-foreground: #f1f1f1;
+  --popover: #212121;
+  --popover-foreground: #f1f1f1;
+  --primary: #f1f1f1;
+  --primary-foreground: #0f0f0f;
+  --secondary: #272727;
+  --secondary-foreground: #f1f1f1;
+  --muted: #272727;
+  --muted-foreground: #aaaaaa;
+  --accent: #272727;
+  --accent-foreground: #f1f1f1;
+  --destructive: #ff4e4e;
+  --border: #3f3f3f;
+  --input: #3f3f3f;
+  --ring: #717171;
+  --sidebar: #0f0f0f;
+  --sidebar-foreground: #f1f1f1;
+  --sidebar-primary: #f1f1f1;
+  --sidebar-primary-foreground: #0f0f0f;
+  --sidebar-accent: #272727;
+  --sidebar-accent-foreground: #f1f1f1;
+  --sidebar-border: #3f3f3f;
+  --sidebar-ring: #717171;
+}
+
+/* Force dark mode overrides for utility classes when .dark is active */
+html.dark,
+body.dark {
+  color-scheme: dark;
+  background-color: #0f0f0f !important;
+  color: #f1f1f1 !important;
+}
+
+/* Element-level text visibility in Dark Mode */
+html.dark h1,
+html.dark h2,
+html.dark h3,
+html.dark h4,
+html.dark h5,
+html.dark h6,
+html.dark p,
+html.dark span,
+html.dark a,
+html.dark label,
+html.dark td,
+html.dark th,
+html.dark li {
+  color: #f1f1f1;
+}
+
+html.dark .text-black,
+html.dark .text-gray-900,
+html.dark .text-gray-800,
+html.dark .text-gray-700,
+html.dark .text-slate-900,
+html.dark .text-zinc-900 {
+  color: #f3f4f6 !important;
+}
+
+html.dark .text-gray-600,
+html.dark .text-gray-500,
+html.dark .text-slate-600,
+html.dark .text-slate-500 {
+  color: #aaaaaa !important;
+}
+
+html.dark .text-gray-400,
+html.dark .text-gray-300 {
+  color: #888888 !important;
+}
+
+/* Explicit blue text overrides for Sign in button & links */
+html.dark .text-blue-600,
+html.dark .text-blue-500,
+html.dark .text-blue-400,
+body.dark .text-blue-600,
+body.dark .text-blue-500,
+body.dark .text-blue-400 {
+  color: #60a5fa !important;
+}
+
+/* Background Overrides */
+html.dark .bg-white,
+body.dark .bg-white {
+  background-color: #0f0f0f !important;
+  color: #f1f1f1 !important;
+}
+
+html.dark .bg-gray-50,
+body.dark .bg-gray-50 {
+  background-color: #181818 !important;
+  color: #f1f1f1 !important;
+}
+
+html.dark .bg-gray-100,
+body.dark .bg-gray-100 {
+  background-color: #272727 !important;
+  color: #f1f1f1 !important;
+}
+
+html.dark .bg-gray-200,
+body.dark .bg-gray-200 {
+  background-color: #383838 !important;
+  color: #f1f1f1 !important;
+}
+
+/* Badge contrast in Dark Mode */
+html.dark .bg-amber-100,
+html.dark .bg-amber-950,
+body.dark .bg-amber-100,
+body.dark .bg-amber-950 {
+  background-color: #451a03 !important;
+  color: #fde68a !important;
+  border-color: #78350f !important;
+}
+
+html.dark .bg-slate-100,
+html.dark .bg-slate-200,
+html.dark .bg-slate-800,
+body.dark .bg-slate-100,
+body.dark .bg-slate-200,
+body.dark .bg-slate-800 {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+  border-color: #475569 !important;
+}
+
+html.dark .bg-yellow-100,
+html.dark .bg-yellow-950,
+body.dark .bg-yellow-100,
+body.dark .bg-yellow-950 {
+  background-color: #422006 !important;
+  color: #fef08a !important;
+  border-color: #713f12 !important;
+}
+
+html.dark .border-gray-100,
+html.dark .border-gray-200,
+html.dark .border-gray-300,
+html.dark .border-b,
+html.dark .border-r,
+html.dark .border-t,
+html.dark .border,
+body.dark .border {
+  border-color: #272727 !important;
+}
+
+html.dark header,
+html.dark aside,
+html.dark nav,
+html.dark div[role="dialog"],
+html.dark [role="menu"] {
+  background-color: #0f0f0f !important;
+  color: #f1f1f1 !important;
+}
+
+html.dark input,
+html.dark textarea {
+  background-color: #121212 !important;
+  color: #ffffff !important;
+  border-color: #3f3f3f !important;
 }
 
 @layer base {

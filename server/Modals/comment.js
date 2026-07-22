@@ -1,35 +1,35 @@
 import mongoose from "mongoose";
+
 const commentschema = mongoose.Schema(
   {
     userid: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "user",
       required: true,
+      index: true,
     },
     videoid: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "videofiles",
       required: true,
+      index: true,
     },
-    commentbody: { type: String },
-    usercommented: { type: String },
+    commentbody: { type: String, required: true },
+    usercommented: { type: String, default: "Anonymous" },
     commentedon: { type: Date, default: Date.now },
-    location: { type: String, default: null }, // country only, optional
-    // language code detected on post e.g. "en", "fr"
+    location: { type: String, default: null },
     language: { type: String, default: "en" },
-    // arrays of user IDs who liked/disliked/reported
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "user" }],
     dislikes: [{ type: mongoose.Schema.Types.ObjectId, ref: "user" }],
     reports: [
       {
         userId: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
         reason: { type: String },
-        customReason: { type: String, default: null }, // only set when reason === "other"
+        customReason: { type: String, default: null },
         reportedAt: { type: Date, default: Date.now },
       },
     ],
-    // flagged for review when report count hits threshold
-    flagged: { type: Boolean, default: false },
+    flagged: { type: Boolean, default: false, index: true },
   },
   {
     timestamps: true,

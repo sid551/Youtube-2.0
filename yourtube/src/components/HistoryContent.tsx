@@ -102,9 +102,17 @@ export default function HistoryContent() {
                   {item.videoid.videotitle}
                 </h3>
               </Link>
-              <p className="text-sm text-gray-600">
-                {item.videoid.videochanel}
-              </p>
+              {item.videoid?.uploader && item.videoid.uploader !== "undefined" ? (
+                <Link href={`/channel/${item.videoid.uploader}`}>
+                  <p className="text-sm text-gray-600 hover:underline hover:text-black">
+                    {item.videoid.videochanel}
+                  </p>
+                </Link>
+              ) : (
+                <p className="text-sm text-gray-600">
+                  {item.videoid.videochanel}
+                </p>
+              )}
               <p className="text-sm text-gray-600">
                 {item.videoid.views.toLocaleString()} views •{" "}
                 {formatDistanceToNow(new Date(item.videoid.createdAt))} ago

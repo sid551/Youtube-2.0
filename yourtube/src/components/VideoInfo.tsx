@@ -13,6 +13,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useUser } from "@/lib/AuthContext";
 import axiosInstance from "@/lib/axiosinstance";
 import { toast } from "sonner";
+import Link from "next/link";
 
 const VideoInfo = ({ video }: any) => {
   const [likes, setlikes] = useState(video.Like || 0);
@@ -23,6 +24,10 @@ const VideoInfo = ({ video }: any) => {
   const { user } = useUser();
   const [isWatchLater, setIsWatchLater] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [subscriberCount, setSubscriberCount] = useState(0);
+  const [subLoading, setSubLoading] = useState(false);
+  const [resolvedChannelId, setResolvedChannelId] = useState<string | null>(null);
 
   useEffect(() => {
     setlikes(video.Like || 0);
@@ -30,6 +35,32 @@ const VideoInfo = ({ video }: any) => {
     setIsLiked(false);
     setIsDisliked(false);
   }, [video]);
+
+  // Load subscribe status whenever uploader or logged-in user changes
+  useEffect(() => {
+    const channelIdentifier =
+      video.uploader && video.uploader !== "undefined"
+        ? video.uploader
+        : video.videochanel;
+    if (!channelIdentifier || channelIdentifier === "undefined") return;
+    const fetchSub = async () => {
+      try {
+        const res = await axiosInstance.get(
+          `/user/subscribe/status/${encodeURIComponent(channelIdentifier)}${
+            user ? `?userId=${user._id}` : ""
+          }`
+        );
+        setIsSubscribed(res.data.subscribed);
+        setSubscriberCount(res.data.subscriberCount);
+        if (res.data.channelId) {
+          setResolvedChannelId(res.data.channelId);
+        }
+      } catch {
+        // silently fail
+      }
+    };
+    fetchSub();
+  }, [video.uploader, video.videochanel, user?._id]);
 
   useEffect(() => {
     const handleviews = async () => {
@@ -108,6 +139,41 @@ const VideoInfo = ({ video }: any) => {
     }
   };
 
+  const handleSubscribe = async () => {
+    if (!user) {
+      toast.error("Sign in to subscribe");
+      return;
+    }
+    const channelIdentifier =
+      resolvedChannelId ||
+      (video.uploader && video.uploader !== "undefined"
+        ? video.uploader
+        : video.videochanel);
+    if (!channelIdentifier || channelIdentifier === "undefined") {
+      toast.error("Channel information unavailable");
+      return;
+    }
+    setSubLoading(true);
+    try {
+      const res = await axiosInstance.post(
+        `/user/subscribe/${encodeURIComponent(channelIdentifier)}`,
+        {
+          userId: user._id,
+        }
+      );
+      setIsSubscribed(res.data.subscribed);
+      setSubscriberCount(res.data.subscriberCount);
+      if (res.data.channelId) {
+        setResolvedChannelId(res.data.channelId);
+      }
+      toast.success(res.data.subscribed ? "Subscribed!" : "Unsubscribed");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Something went wrong");
+    } finally {
+      setSubLoading(false);
+    }
+  };
+
   const handleDownload = async () => {
     if (!user) {
       toast.error("Sign in to download videos");
@@ -138,20 +204,61 @@ const VideoInfo = ({ video }: any) => {
     }
   };
 
+  const channelLink =
+    resolvedChannelId ||
+    (video.uploader && video.uploader !== "undefined"
+      ? video.uploader
+      : null);
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">{video.videotitle}</h1>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Avatar className="w-10 h-10">
-            <AvatarFallback>{video.videochanel[0]}</AvatarFallback>
-          </Avatar>
+          {channelLink ? (
+            <Link href={`/channel/${channelLink}`}>
+              <Avatar className="w-10 h-10 cursor-pointer">
+                <AvatarFallback>{video.videochanel?.[0] || "C"}</AvatarFallback>
+              </Avatar>
+            </Link>
+          ) : (
+            <Avatar className="w-10 h-10">
+              <AvatarFallback>{video.videochanel?.[0] || "C"}</AvatarFallback>
+            </Avatar>
+          )}
           <div>
-            <h3 className="font-medium">{video.videochanel}</h3>
-            <p className="text-sm text-gray-600">1.2M subscribers</p>
+            {channelLink ? (
+              <Link href={`/channel/${channelLink}`}>
+                <h3 className="font-medium hover:underline cursor-pointer">
+                  {video.videochanel}
+                </h3>
+              </Link>
+            ) : (
+              <h3 className="font-medium">{video.videochanel}</h3>
+            )}
+            <p className="text-sm text-gray-600">
+              {subscriberCount >= 1_000_000
+                ? `${(subscriberCount / 1_000_000).toFixed(1)}M`
+                : subscriberCount >= 1_000
+                ? `${(subscriberCount / 1_000).toFixed(1)}K`
+                : subscriberCount}{" "}
+              subscribers
+            </p>
           </div>
-          <Button className="ml-2">Subscribe</Button>
+          {user?._id !== channelLink && (
+            <Button
+              onClick={handleSubscribe}
+              disabled={subLoading}
+              className={
+                isSubscribed
+                  ? "ml-2 bg-gray-100 text-gray-800 hover:bg-gray-200 border border-gray-300"
+                  : "ml-2 bg-black hover:bg-gray-800 text-white"
+              }
+            >
+              {isSubscribed ? "Subscribed" : "Subscribe"}
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center bg-gray-100 rounded-full">
