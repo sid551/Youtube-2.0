@@ -15,7 +15,6 @@ export const UserProvider = ({ children }) => {
   const [otpState, setOtpState] = useState({
     isOpen: false,
     email: "",
-    demoOtp: "",
     device: null,
     location: null,
   });
@@ -85,11 +84,10 @@ export const UserProvider = ({ children }) => {
       setOtpState({
         isOpen: true,
         email: data.email,
-        demoOtp: data.otp || "",
         device: data.device,
         location: data.location,
       });
-      toast.warning("Unusual login detected. Verification OTP sent.");
+      toast.warning("Unusual login detected. A verification OTP has been sent to your email.");
       return false;
     }
     if (data.result) {
@@ -113,7 +111,6 @@ export const UserProvider = ({ children }) => {
         setOtpState({
           isOpen: false,
           email: "",
-          demoOtp: "",
           device: null,
           location: null,
         });
@@ -225,13 +222,11 @@ export const UserProvider = ({ children }) => {
       <OtpVerificationModal
         isOpen={otpState.isOpen}
         email={otpState.email}
-        demoOtp={otpState.demoOtp}
         onVerify={verifyOtpCode}
         onClose={() =>
           setOtpState({
             isOpen: false,
             email: "",
-            demoOtp: "",
             device: null,
             location: null,
           })

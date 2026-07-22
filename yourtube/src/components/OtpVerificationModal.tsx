@@ -8,7 +8,6 @@ import { toast } from "sonner";
 interface OtpVerificationModalProps {
   isOpen: boolean;
   email: string;
-  demoOtp?: string;
   onVerify: (otp: string) => Promise<void>;
   onClose: () => void;
 }
@@ -16,7 +15,6 @@ interface OtpVerificationModalProps {
 const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
   isOpen,
   email,
-  demoOtp,
   onVerify,
   onClose,
 }) => {
@@ -50,16 +48,10 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
           </div>
           <DialogTitle className="text-xl font-bold">Unusual Login Detected</DialogTitle>
           <DialogDescription className="text-sm text-gray-500 dark:text-gray-400 text-center mt-1">
-            We noticed a login attempt from a new device or location. A 6-digit verification code has been sent to{" "}
+            We noticed a login attempt from a new device or location. A 6-digit verification code has been sent to your email address{" "}
             <span className="font-semibold text-gray-800 dark:text-gray-200">{email}</span>.
           </DialogDescription>
         </DialogHeader>
-
-        {demoOtp && (
-          <div className="p-3 bg-amber-50 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-800/50 rounded-lg text-xs text-amber-800 dark:text-amber-300 text-center">
-            <strong>Security Verification Code:</strong> <span className="font-mono text-sm tracking-wider font-bold">{demoOtp}</span>
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div>

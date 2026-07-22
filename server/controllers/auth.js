@@ -134,6 +134,46 @@ const sendInvoiceEmail = async ({
   });
 };
 
+const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) => {
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+      <div style="background:#dc2626;padding:24px;text-align:center">
+        <h1 style="color:#fff;margin:0;font-size:24px">YourTube</h1>
+        <p style="color:#fecaca;margin:4px 0 0">Security Verification Code</p>
+      </div>
+      <div style="padding:32px">
+        <p style="font-size:16px;color:#111827">Hi <strong>${userName || "User"}</strong>,</p>
+        <p style="color:#374151">We detected a login attempt from a new location or device:</p>
+        <ul style="color:#374151;line-height:1.6">
+          <li><strong>Device:</strong> ${device?.browser || "Unknown"} on ${device?.os || "Unknown"}</li>
+          <li><strong>Location:</strong> ${location?.city || "Unknown"}, ${location?.country || "Unknown"}</li>
+        </ul>
+        <p style="color:#374151">Use the following 6-digit verification code to complete your login:</p>
+        <div style="background:#f3f4f6;padding:16px;text-align:center;border-radius:8px;margin:20px 0;letter-spacing:6px;font-size:32px;font-weight:bold;color:#dc2626">
+          ${otpCode}
+        </div>
+        <p style="color:#6b7280;font-size:14px">This code is valid for 10 minutes. If you did not initiate this login attempt, please secure your account immediately.</p>
+      </div>
+      <div style="background:#f9fafb;padding:16px;text-align:center;color:#9ca3af;font-size:12px">
+        &copy; ${new Date().getFullYear()} YourTube. All rights reserved.
+      </div>
+    </div>
+  `;
+
+  try {
+    const transporter = getTransporter();
+    await transporter.sendMail({
+      from: `"YourTube Security" <${process.env.EMAIL_USER}>`,
+      to: toEmail,
+      subject: `YourTube Security Verification Code: ${otpCode}`,
+      html,
+    });
+    console.log(`[OTP SENT] Successfully sent OTP to ${toEmail}`);
+  } catch (err) {
+    console.error(`[OTP EMAIL ERROR] Failed to send OTP to ${toEmail}:`, err.message);
+  }
+};
+
 // Helper to calculate time-based theme in Indian Standard Time (IST, UTC+5:30)
 // If login time is between 10:00 AM and 12:00 PM IST (inclusive), theme is "light", otherwise "dark".
 export const calculateIstTimeBasedTheme = () => {
@@ -287,15 +327,23 @@ export const login = async (req, res) => {
     };
     await existingUser.save();
 
-    console.log(`[SECURITY ALERT] OTP for ${email}: ${otpCode}`);
+    console.log(`[SECURITY ALERT] OTP generated for ${email}: ${otpCode}`);
+
+    // Send OTP email to user's Gmail address
+    await sendOtpEmail({
+      toEmail: existingUser.email,
+      userName: existingUser.name,
+      otpCode,
+      device: currentDevice,
+      location: currentLocation,
+    });
 
     return res.status(200).json({
       requiresOtp: true,
       email: existingUser.email,
-      otp: otpCode,
       device: currentDevice,
       location: currentLocation,
-      message: `Unusual login detected (${currentDevice.browser} on ${currentDevice.os} from ${currentLocation.city}). A 6-digit OTP code has been generated.`,
+      message: `Unusual login detected (${currentDevice.browser} on ${currentDevice.os} from ${currentLocation.city}). A 6-digit OTP code has been sent to your email.`,
     });
   } catch (error) {
     console.error("Login error:", error);
