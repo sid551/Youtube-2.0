@@ -35,6 +35,18 @@ const WatchPage = () => {
     fetchVideo();
   }, [router.isReady, router.query.id]);
 
+  const currentIndex = allVideos.findIndex((v: any) => v._id === video?._id);
+  const nextVideo =
+    allVideos.length > 0
+      ? allVideos[currentIndex !== -1 ? (currentIndex + 1) % allVideos.length : 0]
+      : null;
+
+  const handleNextVideo = () => {
+    if (nextVideo && nextVideo._id) {
+      router.push(`/watch/${nextVideo._id}`);
+    }
+  };
+
   if (loading)
     return <div className="p-8 text-center text-gray-500">Loading...</div>;
   if (!video)
@@ -45,7 +57,11 @@ const WatchPage = () => {
       <div className="max-w-7xl mx-auto p-3 sm:p-4">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
           <div className="lg:col-span-2 space-y-4">
-            <Videopplayer video={video} />
+            <Videopplayer
+              video={video}
+              nextVideo={nextVideo}
+              onNextVideo={handleNextVideo}
+            />
             <VideoInfo video={video} />
             <Comments videoId={router.query.id} />
           </div>
