@@ -201,23 +201,56 @@ const parseDeviceInfo = (req) => {
   const ua = req.headers["user-agent"] || "";
   const bodyDevice = req.body.device || {};
 
-  let browser = bodyDevice.browser || "Chrome";
-  let os = bodyDevice.os || "Windows";
+  let rawBrowser = (bodyDevice.browser || "").toLowerCase();
+  let browser = "Chrome";
 
-  if (!bodyDevice.browser) {
-    if (ua.includes("Firefox")) browser = "Firefox";
-    else if (ua.includes("Edg")) browser = "Edge";
-    else if (ua.includes("Safari") && !ua.includes("Chrome")) browser = "Safari";
-    else if (ua.includes("Opera") || ua.includes("OPR")) browser = "Opera";
-    else if (ua.includes("Chrome")) browser = "Chrome";
+  if (
+    rawBrowser.includes("edge") ||
+    rawBrowser.includes("edg") ||
+    ua.includes("Edg")
+  ) {
+    browser = "Edge";
+  } else if (rawBrowser.includes("firefox") || ua.includes("Firefox")) {
+    browser = "Firefox";
+  } else if (
+    rawBrowser.includes("opera") ||
+    rawBrowser.includes("opr") ||
+    ua.includes("Opera") ||
+    ua.includes("OPR")
+  ) {
+    browser = "Opera";
+  } else if (
+    rawBrowser.includes("safari") ||
+    (ua.includes("Safari") && !ua.includes("Chrome"))
+  ) {
+    browser = "Safari";
+  } else if (rawBrowser.includes("chrome") || ua.includes("Chrome")) {
+    browser = "Chrome";
   }
 
-  if (!bodyDevice.os) {
-    if (ua.includes("Windows")) os = "Windows";
-    else if (ua.includes("Mac OS") || ua.includes("Macintosh")) os = "Mac OS";
-    else if (ua.includes("Android")) os = "Android";
-    else if (ua.includes("iPhone") || ua.includes("iPad")) os = "iOS";
-    else if (ua.includes("Linux")) os = "Linux";
+  let rawOs = (bodyDevice.os || "").toLowerCase();
+  let os = "Windows";
+
+  if (rawOs.includes("win") || ua.includes("Windows")) {
+    os = "Windows";
+  } else if (
+    rawOs.includes("mac") ||
+    ua.includes("Mac OS") ||
+    ua.includes("Macintosh")
+  ) {
+    os = "Mac OS";
+  } else if (rawOs.includes("android") || ua.includes("Android")) {
+    os = "Android";
+  } else if (
+    rawOs.includes("ios") ||
+    rawOs.includes("iphone") ||
+    rawOs.includes("ipad") ||
+    ua.includes("iPhone") ||
+    ua.includes("iPad")
+  ) {
+    os = "iOS";
+  } else if (rawOs.includes("linux") || ua.includes("Linux")) {
+    os = "Linux";
   }
 
   return {
@@ -363,7 +396,7 @@ export const login = async (req, res) => {
 export const verifyOtp = async (req, res) => {
   const { email, otp, device, location } = req.body;
 
-  if (!email || !otp) {
+  if (!email || otp === undefined || otp === null) {
     return res.status(400).json({ message: "Email and OTP code are required" });
   }
 
@@ -373,17 +406,20 @@ export const verifyOtp = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    const cleanInputOtp = String(otp).trim();
+    const cleanStoredOtp =
+      user.otp && user.otp.code ? String(user.otp.code).trim() : null;
+
     if (
-      !user.otp ||
-      !user.otp.code ||
-      user.otp.code !== otp.trim() ||
-      !user.otp.expiresAt ||
+      !cleanStoredOtp ||
+      cleanStoredOtp !== cleanInputOtp ||
+      !user.otp?.expiresAt ||
       new Date() > new Date(user.otp.expiresAt)
     ) {
       return res.status(400).json({ message: "Invalid or expired OTP code" });
     }
 
-    // OTP is valid! Clear OTP and update stored device & location info
+    // OTP is valid! Clear OTP and save new authorized device & location info
     user.otp = { code: null, expiresAt: null };
     if (device) user.lastDevice = device;
     if (location) user.lastLocation = location;
@@ -395,7 +431,7 @@ export const verifyOtp = async (req, res) => {
     });
   } catch (error) {
     console.error("verifyOtp error:", error);
-    return res.status(500).json({ message: "Something went wrong" });
+    return res.status(500).json({ message: "Something went wrong", error: error.message });
   }
 };
 
