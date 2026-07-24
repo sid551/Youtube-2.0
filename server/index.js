@@ -1,3 +1,7 @@
+import dns from "dns";
+// Render's free tier blocks outbound IPv6 — force all DNS lookups to prefer IPv4
+dns.setDefaultResultOrder("ipv4first");
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
