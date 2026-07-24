@@ -135,13 +135,22 @@ const sendInvoiceEmail = async ({
     </div>
   `;
 
-  await getTransporter().sendMail({
-    from: `"YourTube" <${process.env.EMAIL_USER}>`,
-    to: toEmail,
-    subject: `YourTube ${planInfo.label} Plan — Payment Confirmed`,
-    html,
-  });
+  try {
+    await getTransporter().sendMail({
+      from: `"YourTube" <${process.env.EMAIL_USER}>`,
+      to: toEmail,
+      subject: `YourTube ${planInfo.label} Plan — Payment Confirmed`,
+      html,
+    });
+    console.log(`[INVOICE SENT] Successfully sent invoice to ${toEmail}`);
+  } catch (err) {
+    // Reset singleton so the next attempt gets a fresh SMTP connection
+    resetTransporter();
+    console.error(`[INVOICE EMAIL ERROR] Failed to send invoice to ${toEmail}:`, err.message);
+    throw err; // re-throw so the caller's .catch() can log it too
+  }
 };
+
 
 const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) => {
   const html = `
@@ -613,14 +622,19 @@ export const verifyPayment = async (req, res) => {
     userId,
   } = req.body;
 
+  console.log(`[PAYMENT] Verify called — orderId=${razorpay_order_id}, paymentId=${razorpay_payment_id}, plan=${plan}, userId=${userId}`);
+
   // Verify signature
   const expectedSignature = crypto
     .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
     .update(`${razorpay_order_id}|${razorpay_payment_id}`)
     .digest("hex");
 
-  if (expectedSignature !== razorpay_signature)
+  if (expectedSignature !== razorpay_signature) {
+    console.error(`[PAYMENT] Signature MISMATCH — expected=${expectedSignature} got=${razorpay_signature}`);
     return res.status(400).json({ message: "Payment verification failed" });
+  }
+  console.log(`[PAYMENT] Signature verified ✅`);
 
   if (!["bronze", "silver", "gold"].includes(plan))
     return res.status(400).json({ message: "Invalid plan" });
@@ -634,10 +648,13 @@ export const verifyPayment = async (req, res) => {
       { $set: { plan, planStartDate: now, planExpiresAt: expiresAt } },
       { new: true }
     );
-    if (!updatedUser)
+    if (!updatedUser) {
+      console.error(`[PAYMENT] User not found for userId=${userId}`);
       return res.status(404).json({ message: "User not found" });
+    }
+    console.log(`[PAYMENT] Plan updated to '${plan}' for ${updatedUser.email}`);
 
-    // Send invoice email (non-blocking)
+    // Send invoice email — fire non-blocking and log outcome
     const planInfo = PLAN_FEATURES[plan];
     sendInvoiceEmail({
       toEmail: updatedUser.email,
@@ -646,7 +663,7 @@ export const verifyPayment = async (req, res) => {
       orderId: razorpay_order_id,
       paymentId: razorpay_payment_id,
       amount: planInfo.price,
-    }).catch((err) => console.error("Email send failed:", err));
+    }).catch((err) => console.error("[PAYMENT] Invoice email failed:", err.message));
 
     return res.status(200).json({
       message: "Payment verified. Plan upgraded!",
@@ -659,6 +676,7 @@ export const verifyPayment = async (req, res) => {
     return res.status(500).json({ message: "Something went wrong" });
   }
 };
+
 
 // Helper to find channel user by ObjectId or channelname/name
 const findChannelUser = async (identifier) => {
