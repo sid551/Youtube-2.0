@@ -11,7 +11,7 @@ routes.post(
       if (err) {
         if (err.code === "LIMIT_FILE_SIZE") {
           return res.status(400).json({
-            message: "Video file size exceeds maximum 15MB limit for direct database storage.",
+            message: "Video file size exceeds maximum 500MB limit.",
           });
         }
         return res

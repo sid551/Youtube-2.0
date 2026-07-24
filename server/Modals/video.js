@@ -11,6 +11,7 @@ const videochema = mongoose.Schema(
     Like: { type: Number, default: 0 },
     views: { type: Number, default: 0 },
     uploader: { type: String, index: true },
+    gridfsId: { type: mongoose.Schema.Types.ObjectId, default: null },
     videodata: { type: Buffer },
   },
   {

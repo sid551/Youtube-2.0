@@ -475,7 +475,7 @@ export default function VideoPlayer({ video, nextVideo, onNextVideo }: VideoPlay
                 />
               ) : nextVideo.filepath ? (
                 <video
-                  src={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/${nextVideo.filepath}`}
+                  src={getVideoUrl(nextVideo.filepath)}
                   className="w-full h-full object-cover pointer-events-none"
                   preload="metadata"
                 />

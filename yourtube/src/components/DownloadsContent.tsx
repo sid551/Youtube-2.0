@@ -5,6 +5,7 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { Download } from "lucide-react";
 import { useUser } from "@/lib/AuthContext";
+import { getVideoUrl } from "@/lib/utils";
 import axiosInstance from "@/lib/axiosinstance";
 
 export default function DownloadsContent() {
@@ -126,7 +127,7 @@ export default function DownloadsContent() {
               >
                 <div className="relative w-40 aspect-video bg-gray-100 rounded overflow-hidden">
                   <video
-                    src={`${process.env.BACKEND_URL}/${item.videoid?.filepath}`}
+                    src={getVideoUrl(item.videoid?.filepath)}
                     className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-200"
                   />
                 </div>

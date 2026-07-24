@@ -158,8 +158,9 @@ export default function CameraRecorder({
       });
       toast.success("Video uploaded successfully");
       onSuccess();
-    } catch {
-      toast.error("Upload failed. Please try again.");
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || "Upload failed. Please try again.";
+      toast.error(msg);
       setStage("recorded");
     }
   }, [recordedBlob, title, channelId, channelName, onSuccess]);

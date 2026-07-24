@@ -22,8 +22,8 @@ const VideoUploader = ({ channelId, channelName, onSuccess }: any) => {
         toast.error("Please upload a valid video file.");
         return;
       }
-      if (file.size > 100 * 1024 * 1024) {
-        toast.error("File size exceeds 100MB limit.");
+      if (file.size > 500 * 1024 * 1024) {
+        toast.error("File size exceeds 500MB limit.");
         return;
       }
       setVideoFile(file);
@@ -74,9 +74,12 @@ const VideoUploader = ({ channelId, channelName, onSuccess }: any) => {
       setUploadComplete(true);
       resetForm();
       onSuccess?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error uploading video:", error);
-      toast.error("There was an error uploading your video. Please try again.");
+      const errMsg =
+        error?.response?.data?.message ||
+        "There was an error uploading your video. Please try again.";
+      toast.error(errMsg);
     } finally {
       setIsUploading(false);
     }
@@ -99,7 +102,7 @@ const VideoUploader = ({ channelId, channelName, onSuccess }: any) => {
               or click to select files
             </p>
             <p className="text-xs text-gray-400 mt-4">
-              MP4, WebM, MOV or AVI • Up to 100MB
+              MP4, WebM, MOV or AVI • Up to 500MB
             </p>
             <input
               type="file"
