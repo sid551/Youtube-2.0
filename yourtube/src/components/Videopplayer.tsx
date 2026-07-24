@@ -1,8 +1,6 @@
-"use client";
-
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useUser } from "@/lib/AuthContext";
-import { getVideoUrl } from "@/lib/utils";
+import { getVideoUrl, DEFAULT_FALLBACK_VIDEO } from "@/lib/utils";
 import {
   Play,
   Pause,
@@ -385,7 +383,11 @@ export default function VideoPlayer({ video, nextVideo, onNextVideo }: VideoPlay
     }
   };
 
-  const videoSrc = getVideoUrl(video?.filepath);
+  const [failedSrc, setFailedSrc] = useState(false);
+
+  const videoSrc = failedSrc
+    ? DEFAULT_FALLBACK_VIDEO
+    : getVideoUrl(video?.filepath);
 
   return (
     <div
@@ -401,6 +403,10 @@ export default function VideoPlayer({ video, nextVideo, onNextVideo }: VideoPlay
         className="w-full h-full object-contain"
         onClick={handleVideoClick}
         onDoubleClick={toggleFullScreen}
+        onError={() => {
+          setIsBuffering(false);
+          if (!failedSrc) setFailedSrc(true);
+        }}
         onLoadStart={() => setIsBuffering(true)}
         onTimeUpdate={() => {
           if (videoRef.current) {

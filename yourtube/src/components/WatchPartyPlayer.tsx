@@ -16,7 +16,7 @@ import {
   Lock,
 } from "lucide-react";
 
-import { getVideoUrl } from "@/lib/utils";
+import { getVideoUrl, DEFAULT_FALLBACK_VIDEO } from "@/lib/utils";
 
 interface WatchPartyPlayerProps {
   video: {
@@ -58,7 +58,11 @@ export default function WatchPartyPlayer({
   const [showControls, setShowControls] = useState(true);
   const [syncStatus, setSyncStatus] = useState<string>("In Sync");
 
-  const videoSrc = getVideoUrl(video?.filepath);
+  const [failedSrc, setFailedSrc] = useState(false);
+
+  const videoSrc = failedSrc
+    ? DEFAULT_FALLBACK_VIDEO
+    : getVideoUrl(video?.filepath);
 
   // Handle incoming remote video state changes from socket
   useEffect(() => {
@@ -302,6 +306,10 @@ export default function WatchPartyPlayer({
         className="w-full h-full object-contain cursor-default"
         onClick={isHost ? togglePlay : undefined}
         onDoubleClick={toggleFullScreen}
+        onError={() => {
+          setIsBuffering(false);
+          if (!failedSrc) setFailedSrc(true);
+        }}
         onPlay={handlePlayEvent}
         onPause={handlePauseEvent}
         onTimeUpdate={() => {
