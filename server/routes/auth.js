@@ -2,6 +2,7 @@ import express from "express";
 import {
   login,
   verifyOtp,
+  resendOtp,
   getUser,
   updateprofile,
   updatePlan,
@@ -16,6 +17,7 @@ const routes = express.Router();
 
 routes.post("/login", login);
 routes.post("/verify-otp", verifyOtp);
+routes.post("/resend-otp", resendOtp);
 routes.patch("/update/:id", updateprofile);
 routes.patch("/plan/:id", updatePlan);
 routes.patch("/theme/:id", updateTheme);

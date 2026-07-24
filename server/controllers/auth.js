@@ -72,9 +72,18 @@ const getTransporter = () => {
       tls: {
         rejectUnauthorized: false,
       },
+      // Prevent hanging forever on slow SMTP connections
+      connectionTimeout: 10000, // 10s to connect
+      greetingTimeout: 10000,   // 10s to receive greeting
+      socketTimeout: 15000,     // 15s of inactivity
     });
   }
   return _transporter;
+};
+
+// Reset transporter so the next call re-creates a fresh connection
+const resetTransporter = () => {
+  _transporter = null;
 };
 
 const sendInvoiceEmail = async ({
@@ -170,6 +179,8 @@ const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) =>
     });
     console.log(`[OTP SENT] Successfully sent OTP to ${toEmail}`);
   } catch (err) {
+    // Reset singleton so next attempt gets a fresh SMTP connection
+    resetTransporter();
     console.error(`[OTP EMAIL ERROR] Failed to send OTP to ${toEmail}:`, err.message);
   }
 };
@@ -382,18 +393,17 @@ export const login = async (req, res) => {
 
     console.log(`[SECURITY ALERT] OTP generated for ${email}: ${otpCode}`);
 
-    // Send OTP email to user's Gmail address (non-fatal if SMTP fails)
-    try {
-      await sendOtpEmail({
-        toEmail: existingUser.email,
-        userName: existingUser.name,
-        otpCode,
-        device: currentDevice,
-        location: currentLocation,
-      });
-    } catch (emailErr) {
+    // Fire OTP email in the background — do NOT await so the HTTP response
+    // is sent immediately and the modal appears on the client right away.
+    sendOtpEmail({
+      toEmail: existingUser.email,
+      userName: existingUser.name,
+      otpCode,
+      device: currentDevice,
+      location: currentLocation,
+    }).catch((emailErr) => {
       console.error("[OTP Email non-fatal error]:", emailErr);
-    }
+    });
 
     return res.status(200).json({
       requiresOtp: true,
@@ -451,7 +461,49 @@ export const verifyOtp = async (req, res) => {
   }
 };
 
-// PATCH /user/theme/:id — explicit theme update or recalculation reset
+// POST /user/resend-otp — resend OTP to the given email
+export const resendOtp = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: "Email is required" });
+  }
+
+  try {
+    const user = await users.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Generate a fresh 6-digit OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otp = {
+      code: otpCode,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 mins
+    };
+    await user.save();
+
+    console.log(`[RESEND OTP] New OTP generated for ${email}: ${otpCode}`);
+
+    // Fire email non-blocking so response is sent immediately
+    sendOtpEmail({
+      toEmail: user.email,
+      userName: user.name,
+      otpCode,
+      device: user.lastDevice,
+      location: user.lastLocation,
+    }).catch((emailErr) => {
+      console.error("[Resend OTP email error]:", emailErr);
+    });
+
+    return res.status(200).json({ message: "A new OTP has been sent to your email." });
+  } catch (error) {
+    console.error("resendOtp error:", error);
+    return res.status(500).json({ message: "Something went wrong", error: error.message });
+  }
+};
+
+
 export const updateTheme = async (req, res) => {
   const { id } = req.params;
   const { theme, themePreference, reset } = req.body;

@@ -5,7 +5,7 @@ import {
   getRedirectResult,
   signOut,
 } from "firebase/auth";
-import { useState, useEffect, useContext, createContext } from "react";
+import { useState, useEffect, useRef, useContext, createContext } from "react";
 import { provider, auth } from "./firebase";
 import axiosInstance from "./axiosinstance";
 import OtpVerificationModal from "@/components/OtpVerificationModal";
@@ -24,6 +24,16 @@ export const UserProvider = ({ children }) => {
     device: null,
     location: null,
   });
+
+  // Refs to prevent duplicate backend calls:
+  // - redirectHandled: set to true once getRedirectResult calls the backend,
+  //   so onAuthStateChanged skips the duplicate call on the same page load.
+  // - otpPending: set to true while the OTP modal is open, so
+  //   onAuthStateChanged does not re-trigger a new login attempt.
+  // - loginInFlight: prevents concurrent login calls from racing.
+  const redirectHandled = useRef(false);
+  const otpPending = useRef(false);
+  const loginInFlight = useRef(false);
 
   // Client-side IST theme calculation fallback
   const getClientIstTheme = () => {
@@ -78,6 +88,7 @@ export const UserProvider = ({ children }) => {
   const logout = async () => {
     setUser(null);
     localStorage.removeItem("user");
+    otpPending.current = false;
     try {
       await signOut(auth);
     } catch (error) {
@@ -87,6 +98,7 @@ export const UserProvider = ({ children }) => {
 
   const handleLoginResponse = (data) => {
     if (data.requiresOtp) {
+      otpPending.current = true;
       setOtpState({
         isOpen: true,
         email: data.email,
@@ -103,6 +115,29 @@ export const UserProvider = ({ children }) => {
     return false;
   };
 
+  // Central backend login call — guarded against concurrent calls
+  const callBackendLogin = async (firebaseUser) => {
+    if (loginInFlight.current) return;
+    // If OTP modal is already open, do not fire another login request
+    if (otpPending.current) return;
+
+    loginInFlight.current = true;
+    try {
+      const payload = {
+        email: firebaseUser.email,
+        name: firebaseUser.displayName,
+        image: firebaseUser.photoURL || "https://github.com/shadcn.png",
+      };
+      const response = await axiosInstance.post("/user/login", payload);
+      handleLoginResponse(response.data);
+    } catch (error) {
+      console.error("Backend login error:", error);
+      logout();
+    } finally {
+      loginInFlight.current = false;
+    }
+  };
+
   const verifyOtpCode = async (otpCode) => {
     try {
       const res = await axiosInstance.post("/user/verify-otp", {
@@ -114,6 +149,7 @@ export const UserProvider = ({ children }) => {
       if (res.data.result) {
         toast.success("Security verification successful!");
         login(res.data.result);
+        otpPending.current = false;
         setOtpState({
           isOpen: false,
           email: "",
@@ -128,17 +164,38 @@ export const UserProvider = ({ children }) => {
     }
   };
 
+  const closeOtpModal = () => {
+    otpPending.current = false;
+    setOtpState({
+      isOpen: false,
+      email: "",
+      device: null,
+      location: null,
+    });
+  };
+
+  // Detect if on a mobile device (popups are blocked on mobile)
+  const isMobileDevice = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
+  };
+
   const handlegooglesignin = async () => {
     try {
+      if (isMobileDevice()) {
+        // Mobile: use redirect (popups are blocked)
+        // Mark as redirect-initiated so onAuthStateChanged doesn't double-fire
+        redirectHandled.current = false; // will be set after redirect returns
+        await signInWithRedirect(auth, provider);
+        return; // page navigates away
+      }
+
+      // Desktop: use popup
       const result = await signInWithPopup(auth, provider);
-      const firebaseuser = result.user;
-      const payload = {
-        email: firebaseuser.email,
-        name: firebaseuser.displayName,
-        image: firebaseuser.photoURL || "https://github.com/shadcn.png",
-      };
-      const response = await axiosInstance.post("/user/login", payload);
-      handleLoginResponse(response.data);
+      // Popup success — mark redirect as handled so onAuthStateChanged skips the call
+      redirectHandled.current = true;
+      await callBackendLogin(result.user);
     } catch (error) {
       if (
         error?.code === "auth/popup-closed-by-user" ||
@@ -151,9 +208,11 @@ export const UserProvider = ({ children }) => {
         error?.code === "auth/popup-blocked" ||
         error?.code === "auth/operation-not-supported-in-this-environment"
       ) {
+        // Popup blocked even on desktop — fall back to redirect
         console.warn("Popup blocked by browser. Falling back to redirect...");
         toast.info("Popup blocked. Redirecting to Google Sign-In...");
         try {
+          redirectHandled.current = false;
           await signInWithRedirect(auth, provider);
           return;
         } catch (redirectErr) {
@@ -214,40 +273,34 @@ export const UserProvider = ({ children }) => {
     const savedTheme = localStorage.getItem("app_theme") || getClientIstTheme();
     applyThemeToDom(savedTheme);
 
+    // Handle redirect result first — this runs when the user returns after
+    // signInWithRedirect. If a redirect result exists, call the backend and
+    // mark redirectHandled so onAuthStateChanged below skips the duplicate call.
     getRedirectResult(auth)
       .then(async (result) => {
         if (result?.user) {
-          const firebaseuser = result.user;
-          const payload = {
-            email: firebaseuser.email,
-            name: firebaseuser.displayName,
-            image: firebaseuser.photoURL || "https://github.com/shadcn.png",
-          };
-          const response = await axiosInstance.post("/user/login", payload);
-          handleLoginResponse(response.data);
+          redirectHandled.current = true;
+          await callBackendLogin(result.user);
         }
       })
       .catch((err) => {
         console.error("Redirect result error:", err);
       });
 
-    const unsubcribe = onAuthStateChanged(auth, async (firebaseuser) => {
-      if (firebaseuser) {
-        try {
-          const payload = {
-            email: firebaseuser.email,
-            name: firebaseuser.displayName,
-            image: firebaseuser.photoURL || "https://github.com/shadcn.png",
-          };
-          const response = await axiosInstance.post("/user/login", payload);
-          handleLoginResponse(response.data);
-        } catch (error) {
-          console.error(error);
-          logout();
-        }
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // Skip if:
+        // 1. The redirect flow already handled login on this page load, OR
+        // 2. The OTP modal is currently open (user is mid-verification)
+        if (redirectHandled.current) return;
+        if (otpPending.current) return;
+
+        await callBackendLogin(firebaseUser);
       }
     });
-    return () => unsubcribe();
+
+    return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -267,14 +320,7 @@ export const UserProvider = ({ children }) => {
         isOpen={otpState.isOpen}
         email={otpState.email}
         onVerify={verifyOtpCode}
-        onClose={() =>
-          setOtpState({
-            isOpen: false,
-            email: "",
-            device: null,
-            location: null,
-          })
-        }
+        onClose={closeOtpModal}
       />
     </UserContext.Provider>
   );
