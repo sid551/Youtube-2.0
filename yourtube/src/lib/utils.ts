@@ -5,8 +5,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export const DEFAULT_FALLBACK_VIDEO =
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+
 export function getVideoUrl(filepath?: string): string {
-  if (!filepath) return "";
+  if (!filepath) return DEFAULT_FALLBACK_VIDEO;
   if (filepath.startsWith("http://") || filepath.startsWith("https://")) {
     return filepath;
   }

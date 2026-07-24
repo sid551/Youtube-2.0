@@ -150,7 +150,7 @@ export default function VideoPlayer({ video, nextVideo, onNextVideo }: VideoPlay
     if (isPlaying) {
       videoRef.current.pause();
     } else {
-      videoRef.current.play();
+      videoRef.current.play().catch(() => {});
     }
   }, [isPlaying]);
 
@@ -510,7 +510,7 @@ export default function VideoPlayer({ video, nextVideo, onNextVideo }: VideoPlay
                   setHasEnded(false);
                   if (videoRef.current) {
                     videoRef.current.currentTime = 0;
-                    videoRef.current.play();
+                    videoRef.current.play().catch(() => {});
                   }
                 }}
                 className="flex-1 flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-800 dark:text-gray-200 font-semibold text-xs sm:text-sm border border-gray-200 dark:border-zinc-700 transition-all focus:outline-none"
