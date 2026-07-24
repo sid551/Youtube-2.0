@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import Razorpay from "razorpay";
 import crypto from "crypto";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import users from "../Modals/Auth.js";
 import video from "../Modals/video.js";
 
@@ -58,35 +58,17 @@ const getRazorpay = () => {
   return _razorpay;
 };
 
-let _transporter = null;
-const getTransporter = () => {
-  if (!_transporter) {
-    _transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,        // 587 STARTTLS — works on Render (465 SSL is blocked)
-      secure: false,    // false = STARTTLS upgrade after connection
-      requireTLS: true, // enforce TLS — do not fall back to plain text
-      family: 4,        // Force IPv4 — Render blocks outbound IPv6
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
-      connectionTimeout: 10000, // 10s to connect
-      greetingTimeout: 10000,   // 10s to receive greeting
-      socketTimeout: 15000,     // 15s of inactivity
-    });
+// Resend HTTP API client — uses HTTPS (port 443), works on Render free tier
+// Render blocks all outbound SMTP ports (25, 465, 587), so SMTP is not usable.
+let _resend = null;
+const getResend = () => {
+  if (!_resend) {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error("RESEND_API_KEY must be set in .env");
+    }
+    _resend = new Resend(process.env.RESEND_API_KEY);
   }
-  return _transporter;
-};
-
-
-
-// Reset transporter so the next call re-creates a fresh connection
-const resetTransporter = () => {
-  _transporter = null;
+  return _resend;
 };
 
 const sendInvoiceEmail = async ({
@@ -109,16 +91,12 @@ const sendInvoiceEmail = async ({
       </div>
       <div style="padding:32px">
         <p style="font-size:16px;color:#111827">Hi <strong>${userName}</strong>,</p>
-        <p style="color:#374151">Your subscription to the <strong>${
-          planInfo.label
-        } Plan</strong> is now active.</p>
+        <p style="color:#374151">Your subscription to the <strong>${planInfo.label} Plan</strong> is now active.</p>
         <div style="background:#f9fafb;border-radius:8px;padding:20px;margin:24px 0">
           <h3 style="margin:0 0 16px;color:#111827">Invoice Details</h3>
           <table style="width:100%;border-collapse:collapse;font-size:14px">
-            <tr><td style="padding:6px 0;color:#6b7280">Plan</td><td style="padding:6px 0;font-weight:600;color:#111827">${
-              planInfo.label
-            }</td></tr>
-            <tr><td style="padding:6px 0;color:#6b7280">Amount Paid</td><td style="padding:6px 0;font-weight:600;color:#16a34a">₹${amount}</td></tr>
+            <tr><td style="padding:6px 0;color:#6b7280">Plan</td><td style="padding:6px 0;font-weight:600;color:#111827">${planInfo.label}</td></tr>
+            <tr><td style="padding:6px 0;color:#6b7280">Amount Paid</td><td style="padding:6px 0;font-weight:600;color:#16a34a">&#8377;${amount}</td></tr>
             <tr><td style="padding:6px 0;color:#6b7280">Order ID</td><td style="padding:6px 0;color:#374151">${orderId}</td></tr>
             <tr><td style="padding:6px 0;color:#6b7280">Payment ID</td><td style="padding:6px 0;color:#374151">${paymentId}</td></tr>
             <tr><td style="padding:6px 0;color:#6b7280">Valid From</td><td style="padding:6px 0;color:#374151">${now.toDateString()}</td></tr>
@@ -127,31 +105,26 @@ const sendInvoiceEmail = async ({
         </div>
         <h3 style="color:#111827">Plan Benefits</h3>
         <ul style="color:#374151;font-size:14px;line-height:1.8">
-          <li>Downloads per day: <strong>${
-            planInfo.downloads ?? "Unlimited"
-          }</strong></li>
+          <li>Downloads per day: <strong>${planInfo.downloads ?? "Unlimited"}</strong></li>
           <li>Video quality: <strong>${planInfo.quality}</strong></li>
           <li>Ad-free: <strong>${planInfo.ads ? "No" : "Yes"}</strong></li>
         </ul>
-        <p style="color:#6b7280;font-size:13px;margin-top:32px">This is an auto-generated invoice. For support, reply to this email.</p>
+        <p style="color:#6b7280;font-size:13px;margin-top:32px">This is an auto-generated invoice. For support, contact us.</p>
       </div>
     </div>
   `;
 
-  try {
-    await getTransporter().sendMail({
-      from: `"YourTube" <${process.env.EMAIL_USER}>`,
-      to: toEmail,
-      subject: `YourTube ${planInfo.label} Plan — Payment Confirmed`,
-      html,
-    });
-    console.log(`[INVOICE SENT] Successfully sent invoice to ${toEmail}`);
-  } catch (err) {
-    // Reset singleton so the next attempt gets a fresh SMTP connection
-    resetTransporter();
-    console.error(`[INVOICE EMAIL ERROR] Failed to send invoice to ${toEmail}:`, err.message);
-    throw err; // re-throw so the caller's .catch() can log it too
+  const { error } = await getResend().emails.send({
+    from: "YourTube <onboarding@resend.dev>",
+    to: [toEmail],
+    subject: `YourTube ${planInfo.label} Plan — Payment Confirmed`,
+    html,
+  });
+  if (error) {
+    console.error(`[INVOICE EMAIL ERROR] Failed to send invoice to ${toEmail}:`, error.message);
+    throw new Error(error.message);
   }
+  console.log(`[INVOICE SENT] Successfully sent invoice to ${toEmail}`);
 };
 
 
@@ -181,20 +154,17 @@ const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) =>
     </div>
   `;
 
-  try {
-    const transporter = getTransporter();
-    await transporter.sendMail({
-      from: `"YourTube Security" <${process.env.EMAIL_USER}>`,
-      to: toEmail,
-      subject: `YourTube Security Verification Code: ${otpCode}`,
-      html,
-    });
-    console.log(`[OTP SENT] Successfully sent OTP to ${toEmail}`);
-  } catch (err) {
-    // Reset singleton so next attempt gets a fresh SMTP connection
-    resetTransporter();
-    console.error(`[OTP EMAIL ERROR] Failed to send OTP to ${toEmail}:`, err.message);
+  const { error } = await getResend().emails.send({
+    from: "YourTube Security <onboarding@resend.dev>",
+    to: [toEmail],
+    subject: `YourTube Security Verification Code: ${otpCode}`,
+    html,
+  });
+  if (error) {
+    console.error(`[OTP EMAIL ERROR] Failed to send OTP to ${toEmail}:`, error.message);
+    return; // non-fatal
   }
+  console.log(`[OTP SENT] Successfully sent OTP to ${toEmail}`);
 };
 
 // Helper to calculate time-based theme in Indian Standard Time (IST, UTC+5:30)
