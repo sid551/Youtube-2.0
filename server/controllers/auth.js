@@ -62,16 +62,16 @@ let _transporter = null;
 const getTransporter = () => {
   if (!_transporter) {
     _transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
-    });
-    // Verify connection config on first use
-    _transporter.verify((err) => {
-      if (err) console.error("Email transporter error:", err.message);
-      else console.log("Email transporter ready");
+      tls: {
+        rejectUnauthorized: false,
+      },
     });
   }
   return _transporter;
