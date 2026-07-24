@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import Razorpay from "razorpay";
 import crypto from "crypto";
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import users from "../Modals/Auth.js";
 import video from "../Modals/video.js";
 
@@ -58,17 +58,74 @@ const getRazorpay = () => {
   return _razorpay;
 };
 
-// Resend HTTP API client — uses HTTPS (port 443), works on Render free tier
-// Render blocks all outbound SMTP ports (25, 465, 587), so SMTP is not usable.
-let _resend = null;
-const getResend = () => {
-  if (!_resend) {
-    if (!process.env.RESEND_API_KEY) {
-      throw new Error("RESEND_API_KEY must be set in .env");
+// ── Custom Brevo HTTP transport for nodemailer ────────────────────────────────
+// Render free tier blocks ALL outbound SMTP (ports 25, 465, 587).
+// This transport keeps the nodemailer sendMail() interface unchanged but routes
+// emails through Brevo's REST API over HTTPS (port 443) which Render allows.
+// Setup: https://app.brevo.com → Settings → API Keys → copy key → add BREVO_API_KEY to Render env
+const createBrevoTransport = () => ({
+  name: "BrevoHTTP",
+  version: "1.0.0",
+  send(mail, callback) {
+    const data = mail.data;
+
+    // Parse "to" — nodemailer stores it as a string or address object
+    const rawTo = data.to;
+    const toEmail =
+      typeof rawTo === "string"
+        ? rawTo
+        : rawTo?.address || String(rawTo);
+
+    // Parse "from" into name + email
+    const rawFrom = data.from || "";
+    const fromEmail =
+      typeof rawFrom === "string"
+        ? rawFrom.match(/<(.+?)>/)?.[1] || rawFrom
+        : rawFrom?.address || process.env.EMAIL_USER;
+    const fromName =
+      typeof rawFrom === "string"
+        ? rawFrom.match(/^"?(.+?)"?\s*</)?.[1]?.trim() || "YourTube"
+        : rawFrom?.name || "YourTube";
+
+    // Node 18+ has built-in fetch — no extra package needed
+    fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "api-key": process.env.BREVO_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        sender: { name: fromName, email: fromEmail },
+        to: [{ email: toEmail }],
+        subject: data.subject,
+        htmlContent: data.html,
+      }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+          return callback(new Error(err.message || `Brevo error: ${res.status}`));
+        }
+        callback(null, { messageId: `brevo-${Date.now()}@yourtube` });
+      })
+      .catch((err) => callback(err));
+  },
+});
+
+let _transporter = null;
+const getTransporter = () => {
+  if (!_transporter) {
+    if (!process.env.BREVO_API_KEY) {
+      throw new Error("BREVO_API_KEY must be set in .env");
     }
-    _resend = new Resend(process.env.RESEND_API_KEY);
+    _transporter = nodemailer.createTransport(createBrevoTransport());
   }
-  return _resend;
+  return _transporter;
+};
+
+// Reset so next call gets a fresh transport (e.g. after an API key rotation)
+const resetTransporter = () => {
+  _transporter = null;
 };
 
 const sendInvoiceEmail = async ({
@@ -114,19 +171,20 @@ const sendInvoiceEmail = async ({
     </div>
   `;
 
-  const { error } = await getResend().emails.send({
-    from: "YourTube <onboarding@resend.dev>",
-    to: [toEmail],
-    subject: `YourTube ${planInfo.label} Plan — Payment Confirmed`,
-    html,
-  });
-  if (error) {
-    console.error(`[INVOICE EMAIL ERROR] Failed to send invoice to ${toEmail}:`, error.message);
-    throw new Error(error.message);
+  try {
+    await getTransporter().sendMail({
+      from: `"YourTube" <${process.env.EMAIL_USER}>`,
+      to: toEmail,
+      subject: `YourTube ${planInfo.label} Plan — Payment Confirmed`,
+      html,
+    });
+    console.log(`[INVOICE SENT] Successfully sent invoice to ${toEmail}`);
+  } catch (err) {
+    resetTransporter();
+    console.error(`[INVOICE EMAIL ERROR] Failed to send invoice to ${toEmail}:`, err.message);
+    throw err;
   }
-  console.log(`[INVOICE SENT] Successfully sent invoice to ${toEmail}`);
 };
-
 
 const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) => {
   const html = `
@@ -154,17 +212,18 @@ const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) =>
     </div>
   `;
 
-  const { error } = await getResend().emails.send({
-    from: "YourTube Security <onboarding@resend.dev>",
-    to: [toEmail],
-    subject: `YourTube Security Verification Code: ${otpCode}`,
-    html,
-  });
-  if (error) {
-    console.error(`[OTP EMAIL ERROR] Failed to send OTP to ${toEmail}:`, error.message);
-    return; // non-fatal
+  try {
+    await getTransporter().sendMail({
+      from: `"YourTube Security" <${process.env.EMAIL_USER}>`,
+      to: toEmail,
+      subject: `YourTube Security Verification Code: ${otpCode}`,
+      html,
+    });
+    console.log(`[OTP SENT] Successfully sent OTP to ${toEmail}`);
+  } catch (err) {
+    resetTransporter();
+    console.error(`[OTP EMAIL ERROR] Failed to send OTP to ${toEmail}:`, err.message);
   }
-  console.log(`[OTP SENT] Successfully sent OTP to ${toEmail}`);
 };
 
 // Helper to calculate time-based theme in Indian Standard Time (IST, UTC+5:30)
