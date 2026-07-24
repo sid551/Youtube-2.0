@@ -65,6 +65,7 @@ const getTransporter = () => {
       host: "smtp.gmail.com",
       port: 465,
       secure: true,
+      family: 4, // Force IPv4 — Render free tier blocks outbound IPv6 (ENETUNREACH)
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
@@ -80,6 +81,7 @@ const getTransporter = () => {
   }
   return _transporter;
 };
+
 
 // Reset transporter so the next call re-creates a fresh connection
 const resetTransporter = () => {
