@@ -12,6 +12,10 @@ import commentroutes from "./routes/comment.js";
 import downloadroutes from "./routes/download.js";
 import notificationroutes from "./routes/notification.js";
 
+import http from "http";
+import { Server } from "socket.io";
+import { setupWatchPartySockets } from "./sockets/watchpartySocket.js";
+
 dotenv.config();
 const app = express();
 
@@ -31,9 +35,20 @@ app.use("/history", historyrroutes);
 app.use("/comment", commentroutes);
 app.use("/download", downloadroutes);
 app.use("/notification", notificationroutes);
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+
+setupWatchPartySockets(io);
+
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`server running on port ${PORT}`);
 });
 

@@ -8,12 +8,15 @@ import {
   Share,
   ThumbsDown,
   ThumbsUp,
+  Users,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useUser } from "@/lib/AuthContext";
 import axiosInstance from "@/lib/axiosinstance";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useRouter } from "next/router";
+import { getSocket } from "@/lib/socket";
 
 const VideoInfo = ({ video }: any) => {
   const [likes, setlikes] = useState(video.Like || 0);
@@ -23,11 +26,44 @@ const VideoInfo = ({ video }: any) => {
   const [showFullDescription, setShowFullDescription] = useState(false);
   const { user } = useUser();
   const [isWatchLater, setIsWatchLater] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscriberCount, setSubscriberCount] = useState(0);
   const [subLoading, setSubLoading] = useState(false);
   const [resolvedChannelId, setResolvedChannelId] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isCreatingParty, setIsCreatingParty] = useState(false);
+  const router = useRouter();
+
+  const handleCreateWatchParty = () => {
+    setIsCreatingParty(true);
+    try {
+      const socket = getSocket();
+      socket.emit("create_party", {
+        video,
+        user: user ? { _id: user._id, name: user.name, avatar: user.avatar } : { name: "Guest" },
+      });
+
+      const handleCreated = ({ roomId }: { roomId: string }) => {
+        socket.off("party_created", handleCreated);
+        setIsCreatingParty(false);
+        toast.success("Watch Party room created!");
+        router.push(`/watch-party/${roomId}`);
+      };
+
+      const handleError = ({ message }: { message: string }) => {
+        socket.off("party_error", handleError);
+        setIsCreatingParty(false);
+        toast.error(message || "Could not create Watch Party");
+      };
+
+      socket.on("party_created", handleCreated);
+      socket.on("party_error", handleError);
+    } catch (err) {
+      console.error("Watch Party creation error:", err);
+      setIsCreatingParty(false);
+      toast.error("Failed to connect to Watch Party server.");
+    }
+  };
 
   useEffect(() => {
     setlikes(video.Like || 0);
@@ -290,6 +326,18 @@ const VideoInfo = ({ video }: any) => {
               <span className="text-sm">{dislikes.toLocaleString()}</span>
             </Button>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="bg-purple-600 hover:bg-purple-700 text-white dark:bg-purple-600 dark:hover:bg-purple-700 dark:text-white font-semibold rounded-full shadow-sm transition-all border border-purple-500/30 px-3.5"
+            onClick={handleCreateWatchParty}
+            disabled={isCreatingParty}
+          >
+            <Users className="w-4 h-4 mr-1.5 text-white" />
+            <span className="text-white font-semibold text-sm">
+              {isCreatingParty ? "Creating..." : "Watch Party"}
+            </span>
+          </Button>
           <Button
             variant="ghost"
             size="sm"
