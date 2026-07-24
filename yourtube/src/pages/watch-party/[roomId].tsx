@@ -161,45 +161,45 @@ const WatchPartyPage = () => {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
       {/* Top Navbar Header */}
-      <header className="border-b border-zinc-800/80 bg-zinc-900/60 backdrop-blur-md px-4 py-3 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+      <header className="border-b border-zinc-800/80 bg-zinc-900/60 backdrop-blur-md px-3 sm:px-4 py-2.5 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
             <button
               onClick={() => router.push(`/watch/${video._id}`)}
-              className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 transition-colors text-zinc-300"
+              className="p-1.5 sm:p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 transition-colors text-zinc-300 shrink-0"
               title="Leave Watch Party & Return to Video"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center space-x-2">
-              <div className="p-2 rounded-xl bg-purple-600 text-white shadow-md">
+            <div className="flex items-center space-x-2 min-w-0">
+              <div className="p-1.5 sm:p-2 rounded-xl bg-purple-600 text-white shadow-md shrink-0">
                 <Tv className="w-4 h-4" />
               </div>
-              <div>
-                <h1 className="text-sm font-bold text-white tracking-wide">
+              <div className="min-w-0">
+                <h1 className="text-xs sm:text-sm font-bold text-white tracking-wide truncate">
                   Watch Party
                 </h1>
-                <p className="text-xs text-purple-400 font-medium">
+                <p className="text-[11px] sm:text-xs text-purple-400 font-medium truncate">
                   Host: {hostName || "Host"}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <span className="flex items-center space-x-1.5 bg-purple-950/80 border border-purple-800/50 px-3 py-1 rounded-full text-xs font-semibold text-purple-300">
+          <div className="flex items-center space-x-2 shrink-0">
+            <span className="flex items-center space-x-1 sm:space-x-1.5 bg-purple-950/80 border border-purple-800/50 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-semibold text-purple-300">
               <Users className="w-3.5 h-3.5" />
-              <span>{participants.length} Watching</span>
+              <span>{participants.length} <span className="hidden xs:inline">Watching</span></span>
             </span>
           </div>
         </div>
       </header>
 
       {/* Main Watch Party Grid */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Left Column: Synchronized Video Player & Video Details */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="lg:col-span-2 space-y-4 min-w-0">
           <div className="relative">
             {socket && (
               <WatchPartyPlayer
@@ -224,7 +224,7 @@ const WatchPartyPage = () => {
                   className="absolute bottom-12 flex flex-col items-center animate-float-up"
                   style={{ left: `${r.leftPercent}%` }}
                 >
-                  <span className="text-4xl filter drop-shadow-lg animate-bounce">
+                  <span className="text-3xl sm:text-4xl filter drop-shadow-lg animate-bounce">
                     {r.emoji}
                   </span>
                   <span className="text-[10px] bg-black/70 text-purple-300 px-1.5 py-0.5 rounded font-semibold backdrop-blur-xs">
@@ -251,24 +251,24 @@ const WatchPartyPage = () => {
           )}
 
           {/* Video Metadata Box */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-3">
-            <h2 className="text-lg font-bold text-white line-clamp-2">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3.5 sm:p-5 space-y-2 sm:space-y-3">
+            <h2 className="text-sm sm:text-lg font-bold text-white line-clamp-2">
               {video.videotitle}
             </h2>
-            <div className="flex items-center justify-between text-xs text-zinc-400 border-t border-zinc-800/80 pt-3">
+            <div className="flex items-center justify-between text-xs text-zinc-400 border-t border-zinc-800/80 pt-2.5">
               <span>Channel: <strong className="text-zinc-200">{video.videochanel || "Unknown"}</strong></span>
               <span>Views: {video.views ? video.views.toLocaleString() : 0}</span>
             </div>
           </div>
 
           {/* Comments Section */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-zinc-900 bg-white">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3.5 sm:p-5 text-zinc-900 bg-white">
             <Comments videoId={video._id} />
           </div>
         </div>
 
         {/* Right Column: Watch Party Sidebar */}
-        <div className="lg:col-span-1 h-[650px] sticky top-20">
+        <div className="lg:col-span-1 h-[480px] sm:h-[550px] lg:h-[650px] lg:sticky lg:top-20">
           {socket && (
             <PartySidebar
               roomId={roomId}
@@ -282,6 +282,7 @@ const WatchPartyPage = () => {
           )}
         </div>
       </main>
+
 
       <style jsx global>{`
         @keyframes floatUp {

@@ -453,6 +453,12 @@ export default function WatchPartyVideoGrid({
       return;
     }
 
+    // Check if getDisplayMedia is supported (Not supported on mobile browsers)
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== "function") {
+      toast.error("Screen sharing is not supported on mobile browsers. Please use a desktop browser.");
+      return;
+    }
+
     try {
       const displayStream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
@@ -480,12 +486,13 @@ export default function WatchPartyVideoGrid({
       socket.emit("start_screen_share", { roomId });
       toast.success("Started screen sharing!");
     } catch (err: any) {
-      if (err.name !== "NotAllowedError") {
+      if (err.name !== "NotAllowedError" && err.name !== "AbortError") {
         console.error("Error starting screen share:", err);
-        toast.error("Failed to start screen share.");
+        toast.error(err.message || "Failed to start screen share on this device.");
       }
     }
   };
+
 
   // Session Recording Actions (Host Only)
   const handleStopRecording = useCallback(() => {
@@ -504,11 +511,17 @@ export default function WatchPartyVideoGrid({
       return;
     }
 
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== "function") {
+      toast.error("Session recording is not supported on mobile browsers. Please use a desktop browser.");
+      return;
+    }
+
     try {
       const captureStream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: true,
       });
+
 
       recordedChunksRef.current = [];
       const options = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
@@ -613,29 +626,29 @@ export default function WatchPartyVideoGrid({
   const remotePeerList = Array.from(remotePeers.values());
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-xl space-y-4">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 sm:p-4 shadow-xl space-y-3.5">
       {/* Top Header & Join/Leave Banner */}
-      <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-        <div className="flex items-center space-x-2">
-          <div className="p-2 rounded-xl bg-purple-950/80 border border-purple-800/40 text-purple-400">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800">
+        <div className="flex items-center space-x-2 min-w-0">
+          <div className="p-2 rounded-xl bg-purple-950/80 border border-purple-800/40 text-purple-400 shrink-0">
             <Video className="w-5 h-5" />
           </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <h3 className="text-sm font-bold text-white tracking-wide">
+          <div className="min-w-0">
+            <div className="flex items-center space-x-2 flex-wrap">
+              <h3 className="text-xs sm:text-sm font-bold text-white tracking-wide truncate">
                 Face-to-Face Video Call
               </h3>
               {isRecording && (
-                <span className="flex items-center space-x-1 bg-red-950/80 border border-red-800/60 text-red-400 px-2 py-0.5 rounded-full text-[10px] font-bold animate-pulse">
+                <span className="flex items-center space-x-1 bg-red-950/80 border border-red-800/60 text-red-400 px-2 py-0.5 rounded-full text-[10px] font-bold animate-pulse shrink-0">
                   <CircleDot className="w-3 h-3 text-red-500 fill-current" />
                   <span>REC</span>
                 </span>
               )}
             </div>
-            <p className="text-xs text-zinc-400">
+            <p className="text-[11px] sm:text-xs text-zinc-400 truncate">
               {isCallActive
-                ? `${remotePeerList.length + 1} participant(s) in call`
-                : "Connect with friends live during Watch Party"}
+                ? `${remotePeerList.length + 1} in call`
+                : "Connect live with friends"}
             </p>
           </div>
         </div>
@@ -643,16 +656,16 @@ export default function WatchPartyVideoGrid({
         {!isCallActive ? (
           <button
             onClick={handleJoinCall}
-            className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-lg transition-all active:scale-95"
+            className="w-full sm:w-auto flex items-center justify-center space-x-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-lg transition-all active:scale-95 shrink-0"
           >
             <PhoneCall className="w-4 h-4" />
             <span>Join Call</span>
           </button>
         ) : (
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap w-full sm:w-auto overflow-x-auto no-scrollbar py-0.5">
             <button
               onClick={handleToggleMic}
-              className={`p-2 rounded-xl border transition-all ${
+              className={`p-2 rounded-xl border transition-all shrink-0 ${
                 isMuted
                   ? "bg-red-500/20 border-red-500/40 text-red-400"
                   : "bg-zinc-800 border-zinc-700 text-zinc-200 hover:bg-zinc-700"
@@ -664,7 +677,7 @@ export default function WatchPartyVideoGrid({
 
             <button
               onClick={handleToggleCamera}
-              className={`p-2 rounded-xl border transition-all ${
+              className={`p-2 rounded-xl border transition-all shrink-0 ${
                 isVideoOff
                   ? "bg-red-500/20 border-red-500/40 text-red-400"
                   : "bg-zinc-800 border-zinc-700 text-zinc-200 hover:bg-zinc-700"
@@ -677,20 +690,20 @@ export default function WatchPartyVideoGrid({
             {!isScreenSharing ? (
               <button
                 onClick={handleStartScreenShare}
-                className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs transition-all active:scale-95 shadow-md"
-                title="Share Screen"
+                className="flex items-center space-x-1 px-2.5 sm:px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs transition-all active:scale-95 shadow-md shrink-0"
+                title="Share Screen (Desktop only)"
               >
                 <MonitorUp className="w-4 h-4" />
-                <span>Share Screen</span>
+                <span className="text-[11px] sm:text-xs">Share Screen</span>
               </button>
             ) : (
               <button
                 onClick={handleStopScreenShare}
-                className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-all active:scale-95 shadow-md animate-pulse"
+                className="flex items-center space-x-1 px-2.5 sm:px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-all active:scale-95 shadow-md animate-pulse shrink-0"
                 title="Stop Sharing Screen"
               >
                 <MonitorOff className="w-4 h-4" />
-                <span>Stop Sharing</span>
+                <span className="text-[11px] sm:text-xs">Stop Sharing</span>
               </button>
             )}
 
@@ -699,27 +712,27 @@ export default function WatchPartyVideoGrid({
               !isRecordingHost ? (
                 <button
                   onClick={handleStartRecording}
-                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-red-950/80 hover:bg-red-900 text-white font-semibold text-xs border border-red-800/60 shadow-md transition-all active:scale-95"
+                  className="flex items-center space-x-1 px-2.5 sm:px-3 py-2 rounded-xl bg-red-950/80 hover:bg-red-900 text-white font-semibold text-xs border border-red-800/60 shadow-md transition-all active:scale-95 shrink-0"
                   title="Record Session (Host Only)"
                 >
                   <CircleDot className="w-4 h-4 text-red-500 fill-current" />
-                  <span>Record</span>
+                  <span className="text-[11px] sm:text-xs">Record</span>
                 </button>
               ) : (
                 <button
                   onClick={handleStopRecording}
-                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-xs shadow-md transition-all active:scale-95 animate-pulse"
+                  className="flex items-center space-x-1 px-2.5 sm:px-3 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-xs shadow-md transition-all active:scale-95 animate-pulse shrink-0"
                   title="Stop Session Recording"
                 >
                   <Square className="w-4 h-4 fill-current text-white" />
-                  <span>Stop REC</span>
+                  <span className="text-[11px] sm:text-xs">Stop REC</span>
                 </button>
               )
             )}
 
             <button
               onClick={() => setShowParticipantModal(!showParticipantModal)}
-              className={`flex items-center space-x-1.5 px-2.5 py-2 rounded-xl border transition-all ${
+              className={`flex items-center space-x-1.5 px-2.5 py-2 rounded-xl border transition-all shrink-0 ${
                 showParticipantModal
                   ? "bg-purple-600 text-white border-purple-500"
                   : "bg-zinc-800 border-zinc-700 text-zinc-200 hover:bg-zinc-700"
@@ -732,15 +745,16 @@ export default function WatchPartyVideoGrid({
 
             <button
               onClick={handleLeaveCall}
-              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-xs transition-all active:scale-95 shadow-md"
+              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-xs transition-all active:scale-95 shadow-md shrink-0 ml-auto sm:ml-0"
               title="Leave Video Call"
             >
               <PhoneOff className="w-4 h-4" />
-              <span>Leave Call</span>
+              <span className="text-[11px] sm:text-xs">Leave</span>
             </button>
           </div>
         )}
       </div>
+
 
       {/* Participant List Quick Modal Overlay */}
       {showParticipantModal && (
