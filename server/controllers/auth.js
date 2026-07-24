@@ -63,9 +63,10 @@ const getTransporter = () => {
   if (!_transporter) {
     _transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      family: 4, // Force IPv4 — Render free tier blocks outbound IPv6 (ENETUNREACH)
+      port: 587,        // 587 STARTTLS — works on Render (465 SSL is blocked)
+      secure: false,    // false = STARTTLS upgrade after connection
+      requireTLS: true, // enforce TLS — do not fall back to plain text
+      family: 4,        // Force IPv4 — Render blocks outbound IPv6
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
@@ -73,7 +74,6 @@ const getTransporter = () => {
       tls: {
         rejectUnauthorized: false,
       },
-      // Prevent hanging forever on slow SMTP connections
       connectionTimeout: 10000, // 10s to connect
       greetingTimeout: 10000,   // 10s to receive greeting
       socketTimeout: 15000,     // 15s of inactivity
@@ -81,6 +81,7 @@ const getTransporter = () => {
   }
   return _transporter;
 };
+
 
 
 // Reset transporter so the next call re-creates a fresh connection
