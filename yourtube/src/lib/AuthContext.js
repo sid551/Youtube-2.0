@@ -115,6 +115,46 @@ export const UserProvider = ({ children }) => {
     return false;
   };
 
+  // Detect real browser and OS from navigator.userAgent
+  const getDeviceInfo = () => {
+    const ua = navigator.userAgent;
+    let browser = "Chrome";
+    if (/Edg\//.test(ua)) browser = "Edge";
+    else if (/OPR\/|Opera/.test(ua)) browser = "Opera";
+    else if (/Firefox/.test(ua)) browser = "Firefox";
+    else if (/Safari/.test(ua) && !/Chrome/.test(ua)) browser = "Safari";
+    else if (/Chrome/.test(ua)) browser = "Chrome";
+    // Detect Brave (Brave sets navigator.brave)
+    if ((navigator).brave) browser = "Brave";
+
+    let os = "Unknown";
+    if (/Windows/.test(ua)) os = "Windows";
+    else if (/Android/.test(ua)) os = "Android";
+    else if (/iPhone|iPad/.test(ua)) os = "iOS";
+    else if (/Macintosh|Mac OS/.test(ua)) os = "Mac OS";
+    else if (/Linux/.test(ua)) os = "Linux";
+
+    return { browser, os, userAgent: ua.slice(0, 150) };
+  };
+
+  // Fetch real location from ipapi.co (free, no key needed, ~100ms)
+  const getLocationInfo = async () => {
+    try {
+      const res = await fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(5000) });
+      if (!res.ok) throw new Error("ipapi failed");
+      const data = await res.json();
+      return {
+        city: data.city || "Unknown",
+        state: data.region || "Unknown",
+        country: data.country_name || "Unknown",
+        ip: data.ip || "",
+      };
+    } catch {
+      // Fallback: no location — backend will use IP header
+      return { city: "Unknown", state: "Unknown", country: "Unknown", ip: "" };
+    }
+  };
+
   // Central backend login call — guarded against concurrent calls
   const callBackendLogin = async (firebaseUser) => {
     if (loginInFlight.current) return;
@@ -123,10 +163,15 @@ export const UserProvider = ({ children }) => {
 
     loginInFlight.current = true;
     try {
+      const [location] = await Promise.all([getLocationInfo()]);
+      const device = getDeviceInfo();
+
       const payload = {
         email: firebaseUser.email,
         name: firebaseUser.displayName,
         image: firebaseUser.photoURL || "https://github.com/shadcn.png",
+        device,
+        location,
       };
       const response = await axiosInstance.post("/user/login", payload);
       handleLoginResponse(response.data);
@@ -137,6 +182,7 @@ export const UserProvider = ({ children }) => {
       loginInFlight.current = false;
     }
   };
+
 
   const verifyOtpCode = async (otpCode) => {
     try {

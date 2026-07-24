@@ -35,6 +35,7 @@ const userschema = mongoose.Schema(
       city: { type: String, default: null },
       state: { type: String, default: null },
       country: { type: String, default: null },
+      ip: { type: String, default: null },
     },
     otp: {
       code: { type: String, default: null },

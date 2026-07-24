@@ -271,13 +271,22 @@ const parseDeviceInfo = (req) => {
   };
 };
 
-// Helper to parse Location info (City + State + Country)
+// Helper to parse Location info (City + State + Country + IP)
 const parseLocationInfo = (req) => {
   const bodyLoc = req.body.location || {};
+
+  // Extract real client IP (works behind Render/Nginx proxies)
+  const clientIp =
+    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+    req.headers["x-real-ip"] ||
+    req.socket?.remoteAddress ||
+    "unknown";
+
   return {
-    city: bodyLoc.city || "Mumbai",
-    state: bodyLoc.state || "Maharashtra",
-    country: bodyLoc.country || "India",
+    city: bodyLoc.city || "Unknown",
+    state: bodyLoc.state || "Unknown",
+    country: bodyLoc.country || "Unknown",
+    ip: bodyLoc.ip || clientIp, // prefer what frontend sent, fallback to server-detected
   };
 };
 
@@ -342,8 +351,14 @@ export const login = async (req, res) => {
       existingUser.lastDevice?.browser && existingUser.lastDevice?.os;
     const hasLocationRecord = existingUser.lastLocation?.city;
 
-    if (!hasDeviceRecord || !hasLocationRecord) {
-      // First time recording security info -> save & login immediately
+    // Treat old hardcoded "Mumbai" default as a missing/legacy location record
+    // so it gets replaced with the real location on next login.
+    const isLegacyLocation =
+      existingUser.lastLocation?.city === "Mumbai" &&
+      !existingUser.lastLocation?.ip;
+
+    if (!hasDeviceRecord || !hasLocationRecord || isLegacyLocation) {
+      // First time (or legacy) recording security info -> save & login immediately
       existingUser.lastDevice = currentDevice;
       existingUser.lastLocation = currentLocation;
       await existingUser.save();
@@ -371,9 +386,29 @@ export const login = async (req, res) => {
       (existingUser.lastDevice?.os || "").toLowerCase() ===
         currentDevice.os.toLowerCase();
 
-    const locationMatches =
-      (existingUser.lastLocation?.city || "").toLowerCase() ===
-      currentLocation.city.toLowerCase();
+    const locationMatches = (() => {
+      const storedCity = (existingUser.lastLocation?.city || "").toLowerCase();
+      const currentCity = currentLocation.city.toLowerCase();
+      // If both have known cities, compare them
+      if (storedCity && storedCity !== "unknown" && currentCity !== "unknown") {
+        return storedCity === currentCity;
+      }
+      // Fall back to IP comparison when city is unknown
+      const storedIp = existingUser.lastLocation?.ip || "";
+      const currentIp = currentLocation.ip || "";
+      if (storedIp && currentIp && storedIp !== "unknown" && currentIp !== "unknown") {
+        return storedIp === currentIp;
+      }
+      // Can't compare — treat as match to avoid false OTP spam
+      return true;
+    })();
+
+    console.log(`[LOGIN DEBUG] User: ${email}`);
+    console.log(`[LOGIN DEBUG] Stored device: ${existingUser.lastDevice?.browser} / ${existingUser.lastDevice?.os}`);
+    console.log(`[LOGIN DEBUG] Current device: ${currentDevice.browser} / ${currentDevice.os}`);
+    console.log(`[LOGIN DEBUG] Stored location: ${existingUser.lastLocation?.city}`);
+    console.log(`[LOGIN DEBUG] Current location: ${currentLocation.city}`);
+    console.log(`[LOGIN DEBUG] deviceMatches=${deviceMatches}, locationMatches=${locationMatches}`);
 
     if (deviceMatches && locationMatches) {
       // Both match -> Normal Login (update lastDevice to current browser info)
