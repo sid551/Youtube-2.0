@@ -653,7 +653,13 @@ export const getSubscribeStatus = async (req, res) => {
 
   try {
     const channel = await findChannelUser(channelId);
-    if (!channel) return res.status(404).json({ message: "Channel not found" });
+    if (!channel) {
+      return res.status(200).json({
+        subscribed: false,
+        subscriberCount: 0,
+        channelId: channelId,
+      });
+    }
 
     const subscribers = channel.subscribers || [];
     const subscribed = userId
