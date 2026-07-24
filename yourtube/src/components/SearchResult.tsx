@@ -3,6 +3,7 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import axiosInstance from "@/lib/axiosinstance";
+import { getVideoUrl } from "@/lib/utils";
 
 const SearchResult = ({ query }: { query: string }) => {
   const [videoList, setVideoList] = useState<any[]>([]);
@@ -76,7 +77,7 @@ const SearchResult = ({ query }: { query: string }) => {
               <Link href={`/watch/${video._id}`} className="flex-shrink-0">
                 <div className="relative w-full sm:w-80 aspect-video bg-gray-100 rounded-lg overflow-hidden">
                   <video
-                    src={`${backendUrl}/${video.filepath}`}
+                    src={getVideoUrl(video.filepath)}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                   />
                 </div>

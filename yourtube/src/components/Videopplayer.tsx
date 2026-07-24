@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useUser } from "@/lib/AuthContext";
+import { getVideoUrl } from "@/lib/utils";
 import {
   Play,
   Pause,
@@ -384,9 +385,7 @@ export default function VideoPlayer({ video, nextVideo, onNextVideo }: VideoPlay
     }
   };
 
-  const videoSrc = `${
-    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"
-  }/${video?.filepath}`;
+  const videoSrc = getVideoUrl(video?.filepath);
 
   return (
     <div

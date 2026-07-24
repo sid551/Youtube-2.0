@@ -16,6 +16,8 @@ import {
   Lock,
 } from "lucide-react";
 
+import { getVideoUrl } from "@/lib/utils";
+
 interface WatchPartyPlayerProps {
   video: {
     _id: string;
@@ -56,9 +58,7 @@ export default function WatchPartyPlayer({
   const [showControls, setShowControls] = useState(true);
   const [syncStatus, setSyncStatus] = useState<string>("In Sync");
 
-  const videoSrc = `${
-    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"
-  }/${video?.filepath}`;
+  const videoSrc = getVideoUrl(video?.filepath);
 
   // Handle incoming remote video state changes from socket
   useEffect(() => {

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
+import { getVideoUrl } from "@/lib/utils";
 
 interface RelatedVideosProps {
   videos: Array<{
@@ -14,16 +15,11 @@ interface RelatedVideosProps {
 }
 
 export default function RelatedVideos({ videos }: RelatedVideosProps) {
-  const backendUrl =
-    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-
   return (
     <div className="space-y-3">
       {videos.map((video) => {
         const hasUploader = video.uploader && video.uploader !== "undefined";
-        const videoSrc = video.filepath
-          ? `${backendUrl}/${video.filepath}`
-          : "/video/vdo.mp4";
+        const videoSrc = getVideoUrl(video.filepath) || "/video/vdo.mp4";
 
         return (
           <div key={video._id} className="flex gap-2 group">

@@ -2,14 +2,13 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { formatDistanceToNow } from "date-fns";
 import { Avatar, AvatarFallback } from "./ui/avatar";
+import { getVideoUrl } from "@/lib/utils";
 
 export default function VideoCard({ video }: any) {
   const router = useRouter();
 
   if (!video?._id) return null;
 
-  const backendUrl =
-    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
   const hasUploader = video.uploader && video.uploader !== "undefined";
 
   return (
@@ -20,7 +19,7 @@ export default function VideoCard({ video }: any) {
         onClick={() => router.push(`/watch/${video._id}`)}
       >
         <video
-          src={`${backendUrl}/${video.filepath}`}
+          src={getVideoUrl(video.filepath)}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
         />
       </div>
