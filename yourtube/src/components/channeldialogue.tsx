@@ -3,6 +3,7 @@ import React, { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -16,12 +17,6 @@ import { useUser } from "@/lib/AuthContext";
 
 const Channeldialogue = ({ isopen, onclose, channeldata, mode }: any) => {
   const { user, login } = useUser();
-  // const user: any = {
-  //   id: "1",
-  //   name: "John Doe",
-  //   email: "john@example.com",
-  //   image: "https://github.com/shadcn.png?height=32&width=32",
-  // };
   const router = useRouter();
   const [formData, setFormData] = useState({
     name: "",
@@ -72,6 +67,11 @@ const Channeldialogue = ({ isopen, onclose, channeldata, mode }: any) => {
           <DialogTitle>
             {mode === "create" ? "Create your channel" : "Edit your channel"}
           </DialogTitle>
+          <DialogDescription>
+            {mode === "create"
+              ? "Set up your public YouTube channel details."
+              : "Update your channel name and description."}
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handlesubmit} className="space-y-6">

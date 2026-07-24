@@ -339,20 +339,36 @@ export const login = async (req, res) => {
       return res.status(200).json({ result: existingUser });
     }
 
+    // Helper to check if browser belongs to Chromium family
+    const isChromiumFamily = (b) =>
+      ["chrome", "edge", "opera", "brave"].includes((b || "").toLowerCase());
+
+    const isSameBrowserOrChromiumDesktop = (b1, b2) => {
+      const browser1 = (b1 || "").toLowerCase();
+      const browser2 = (b2 || "").toLowerCase();
+      if (browser1 === browser2) return true;
+      if (isChromiumFamily(browser1) && isChromiumFamily(browser2)) return true;
+      return false;
+    };
+
     // Compare current vs last recorded device and location
     const deviceMatches =
-      existingUser.lastDevice.browser.toLowerCase() ===
-        currentDevice.browser.toLowerCase() &&
-      existingUser.lastDevice.os.toLowerCase() ===
+      isSameBrowserOrChromiumDesktop(
+        existingUser.lastDevice?.browser,
+        currentDevice.browser
+      ) &&
+      (existingUser.lastDevice?.os || "").toLowerCase() ===
         currentDevice.os.toLowerCase();
 
     const locationMatches =
-      existingUser.lastLocation.city.toLowerCase() ===
+      (existingUser.lastLocation?.city || "").toLowerCase() ===
       currentLocation.city.toLowerCase();
 
     if (deviceMatches && locationMatches) {
-      // Both match -> Normal Login
-      if (modified) await existingUser.save();
+      // Both match -> Normal Login (update lastDevice to current browser info)
+      existingUser.lastDevice = currentDevice;
+      existingUser.lastLocation = currentLocation;
+      await existingUser.save();
       return res.status(200).json({ result: existingUser });
     }
 

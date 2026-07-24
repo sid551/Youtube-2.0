@@ -8,6 +8,13 @@ export const uploadvideo = async (req, res) => {
       .status(400)
       .json({ message: "Please upload a valid video file (.mp4, .webm, etc.)" });
   }
+
+  if (req.file.buffer && req.file.buffer.length > 15 * 1024 * 1024) {
+    return res.status(400).json({
+      message: "Video file size exceeds the 15MB limit for direct database storage.",
+    });
+  }
+
   try {
     const newVideo = new video({
       videotitle: req.body.videotitle || req.file.originalname,

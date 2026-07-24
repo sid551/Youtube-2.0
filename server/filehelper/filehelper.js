@@ -14,7 +14,7 @@ const filefilter = (req, file, cb) => {
 const upload = multer({
   storage: storage,
   fileFilter: filefilter,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max file size for MongoDB storage
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB max file size (MongoDB BSON max limit is 16MB)
 });
 
 export default upload;

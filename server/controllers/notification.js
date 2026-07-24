@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import notification from "../Modals/notification.js";
 import users from "../Modals/Auth.js";
 
@@ -39,10 +40,12 @@ export const createUploadNotification = async (
   videoTitle
 ) => {
   try {
-    const allUsers = await users.find({ _id: { $ne: uploaderId } }, "_id");
+    const isIdValid = uploaderId && mongoose.Types.ObjectId.isValid(uploaderId);
+    const filter = isIdValid ? { _id: { $ne: uploaderId } } : {};
+    const allUsers = await users.find(filter, "_id");
     const docs = allUsers.map((u) => ({
       userId: u._id,
-      message: `New video uploaded: "${videoTitle}"`,
+      message: `New video uploaded: "${videoTitle || "Untitled"}"`,
       videoid: videoId,
       read: false,
     }));

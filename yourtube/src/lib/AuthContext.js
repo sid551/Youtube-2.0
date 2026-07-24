@@ -1,4 +1,10 @@
-import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  signOut,
+} from "firebase/auth";
 import { useState, useEffect, useContext, createContext } from "react";
 import { provider, auth } from "./firebase";
 import axiosInstance from "./axiosinstance";
@@ -141,6 +147,19 @@ export const UserProvider = ({ children }) => {
         console.log("Google sign-in popup closed by user.");
         return;
       }
+      if (
+        error?.code === "auth/popup-blocked" ||
+        error?.code === "auth/operation-not-supported-in-this-environment"
+      ) {
+        console.warn("Popup blocked by browser. Falling back to redirect...");
+        toast.info("Popup blocked. Redirecting to Google Sign-In...");
+        try {
+          await signInWithRedirect(auth, provider);
+          return;
+        } catch (redirectErr) {
+          console.error("Redirect signin error:", redirectErr);
+        }
+      }
       console.error("Google signin error:", error);
       toast.error(error?.message || "Google sign-in failed");
     }
@@ -194,6 +213,23 @@ export const UserProvider = ({ children }) => {
   useEffect(() => {
     const savedTheme = localStorage.getItem("app_theme") || getClientIstTheme();
     applyThemeToDom(savedTheme);
+
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result?.user) {
+          const firebaseuser = result.user;
+          const payload = {
+            email: firebaseuser.email,
+            name: firebaseuser.displayName,
+            image: firebaseuser.photoURL || "https://github.com/shadcn.png",
+          };
+          const response = await axiosInstance.post("/user/login", payload);
+          handleLoginResponse(response.data);
+        }
+      })
+      .catch((err) => {
+        console.error("Redirect result error:", err);
+      });
 
     const unsubcribe = onAuthStateChanged(auth, async (firebaseuser) => {
       if (firebaseuser) {
