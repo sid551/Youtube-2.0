@@ -134,7 +134,15 @@ export const UserProvider = ({ children }) => {
       const response = await axiosInstance.post("/user/login", payload);
       handleLoginResponse(response.data);
     } catch (error) {
+      if (
+        error?.code === "auth/popup-closed-by-user" ||
+        error?.code === "auth/cancelled-popup-request"
+      ) {
+        console.log("Google sign-in popup closed by user.");
+        return;
+      }
       console.error("Google signin error:", error);
+      toast.error(error?.message || "Google sign-in failed");
     }
   };
 
