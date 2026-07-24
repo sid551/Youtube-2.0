@@ -87,6 +87,10 @@ const createBrevoTransport = () => ({
         ? rawFrom.match(/^"?(.+?)"?\s*</)?.[1]?.trim() || "YourTube"
         : rawFrom?.name || "YourTube";
 
+    const apiKey = process.env.BREVO_API_KEY || "";
+    // Log first 10 chars so you can verify the right key is loaded (safe — not the full key)
+    console.log(`[BREVO] Using key starting with: ${apiKey.slice(0, 10)}... (length ${apiKey.length})`);
+
     // Node 18+ has built-in fetch — no extra package needed
     fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
@@ -111,6 +115,7 @@ const createBrevoTransport = () => ({
       .catch((err) => callback(err));
   },
 });
+
 
 let _transporter = null;
 const getTransporter = () => {
@@ -425,7 +430,7 @@ export const login = async (req, res) => {
         currentDevice.browser
       ) &&
       (existingUser.lastDevice?.os || "").toLowerCase() ===
-        currentDevice.os.toLowerCase();
+      currentDevice.os.toLowerCase();
 
     const locationMatches = (() => {
       const storedCity = (existingUser.lastLocation?.city || "").toLowerCase();
