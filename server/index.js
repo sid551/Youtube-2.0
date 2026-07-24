@@ -23,9 +23,11 @@ app.use(
   cors({
     origin: "*",
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
   })
 );
+app.options("*", cors());
+
 app.use(express.json({ limit: "30mb" }));
 app.use(express.urlencoded({ limit: "30mb", extended: true }));
 app.use("/uploads", express.static(path.join("uploads")));
@@ -41,6 +43,17 @@ app.use("/history", historyrroutes);
 app.use("/comment", commentroutes);
 app.use("/download", downloadroutes);
 app.use("/notification", notificationroutes);
+
+// Global Error Handler guaranteeing CORS headers on error responses
+app.use((err, req, res, next) => {
+  console.error("Unhandled Backend Error:", err);
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "*");
+  res.status(err.status || 500).json({
+    message: "Internal Server Error",
+    error: err.message || "Unknown error",
+  });
+});
 
 const server = http.createServer(app);
 const io = new Server(server, {

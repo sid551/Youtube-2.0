@@ -239,6 +239,10 @@ const parseLocationInfo = (req) => {
 
 export const login = async (req, res) => {
   const { email, name, image } = req.body;
+  if (!email) {
+    return res.status(400).json({ message: "Email is required for login" });
+  }
+
   try {
     const calculatedTheme = calculateIstTimeBasedTheme();
     const currentDevice = parseDeviceInfo(req);
@@ -248,8 +252,8 @@ export const login = async (req, res) => {
     if (!existingUser) {
       const newUser = await users.create({
         email,
-        name,
-        image,
+        name: name || "User",
+        image: image || "https://github.com/shadcn.png",
         theme: calculatedTheme,
         themePreference: calculatedTheme,
         lastDevice: currentDevice,
@@ -329,14 +333,18 @@ export const login = async (req, res) => {
 
     console.log(`[SECURITY ALERT] OTP generated for ${email}: ${otpCode}`);
 
-    // Send OTP email to user's Gmail address
-    await sendOtpEmail({
-      toEmail: existingUser.email,
-      userName: existingUser.name,
-      otpCode,
-      device: currentDevice,
-      location: currentLocation,
-    });
+    // Send OTP email to user's Gmail address (non-fatal if SMTP fails)
+    try {
+      await sendOtpEmail({
+        toEmail: existingUser.email,
+        userName: existingUser.name,
+        otpCode,
+        device: currentDevice,
+        location: currentLocation,
+      });
+    } catch (emailErr) {
+      console.error("[OTP Email non-fatal error]:", emailErr);
+    }
 
     return res.status(200).json({
       requiresOtp: true,
@@ -347,7 +355,7 @@ export const login = async (req, res) => {
     });
   } catch (error) {
     console.error("Login error:", error);
-    return res.status(500).json({ message: "Something went wrong" });
+    return res.status(500).json({ message: "Something went wrong", error: error.message });
   }
 };
 
