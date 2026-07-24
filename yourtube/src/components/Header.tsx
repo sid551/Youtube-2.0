@@ -382,8 +382,8 @@ const Header = ({ onMenuClick }: HeaderProps) => {
 
                 {/* Notification panel */}
                 {showNotifications && (
-                  <div className="absolute right-0 top-10 w-80 bg-white border rounded-xl shadow-xl z-50 overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-3 border-b">
+                  <div className="absolute right-0 top-12 w-[calc(100vw-1.5rem)] sm:w-80 max-w-sm bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl z-50 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 border-b dark:border-zinc-800">
                       <span className="font-semibold text-sm">
                         Notifications
                       </span>
@@ -396,7 +396,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
                         <X className="w-4 h-4" />
                       </Button>
                     </div>
-                    <div className="max-h-96 overflow-y-auto divide-y">
+                    <div className="max-h-80 sm:max-h-96 overflow-y-auto divide-y dark:divide-zinc-800">
                       {notifications.length === 0 ? (
                         <div className="py-10 text-center text-sm text-gray-400">
                           No notifications yet
@@ -405,8 +405,8 @@ const Header = ({ onMenuClick }: HeaderProps) => {
                         notifications.map((n) => (
                           <div
                             key={n._id}
-                            className={`flex gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors ${
-                              !n.read ? "bg-blue-50" : ""
+                            className={`flex gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-zinc-800/60 cursor-pointer transition-colors ${
+                              !n.read ? "bg-blue-50/70 dark:bg-blue-950/30" : ""
                             }`}
                             onClick={() => {
                               setShowNotifications(false);
@@ -414,11 +414,11 @@ const Header = ({ onMenuClick }: HeaderProps) => {
                                 router.push(`/watch/${n.videoid._id}`);
                             }}
                           >
-                            <div className="shrink-0 bg-red-100 rounded-full p-2 h-8 w-8 flex items-center justify-center">
-                              <Upload className="w-4 h-4 text-red-600" />
+                            <div className="shrink-0 bg-red-100 dark:bg-red-950 rounded-full p-2 h-8 w-8 flex items-center justify-center">
+                              <Upload className="w-4 h-4 text-red-600 dark:text-red-400" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs text-gray-800 line-clamp-2">
+                              <p className="text-xs text-gray-800 dark:text-gray-200 line-clamp-2">
                                 {n.message}
                               </p>
                               <p className="text-xs text-gray-400 mt-0.5">
@@ -458,7 +458,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuContent className="w-56 max-w-[90vw]" align="end" forceMount>
                   {user?.channelname ? (
                     <DropdownMenuItem asChild>
                       <Link href={`/channel/${user?._id}`}>Your channel</Link>
@@ -542,11 +542,11 @@ const Header = ({ onMenuClick }: HeaderProps) => {
       {showUploadModal && (
         <>
           <div
-            className="fixed inset-0 z-50 bg-black/50"
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
             onClick={() => setShowUploadModal(false)}
           />
-          <div className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b">
+          <div className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-lg max-h-[90vh] bg-white dark:bg-zinc-900 border dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b dark:border-zinc-800 shrink-0">
               <h2 className="font-semibold text-base">Upload video</h2>
               <Button
                 variant="ghost"
@@ -556,7 +556,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
                 <X className="w-5 h-5" />
               </Button>
             </div>
-            <div className="p-5">
+            <div className="p-4 sm:p-5 overflow-y-auto">
               <VideoUploader
                 channelId={user?._id}
                 channelName={user?.channelname}
@@ -571,11 +571,11 @@ const Header = ({ onMenuClick }: HeaderProps) => {
       {showRecordModal && (
         <>
           <div
-            className="fixed inset-0 z-50 bg-black/50"
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
             onClick={() => setShowRecordModal(false)}
           />
-          <div className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b">
+          <div className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[95vw] max-w-2xl max-h-[90vh] bg-white dark:bg-zinc-900 border dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b dark:border-zinc-800 shrink-0">
               <h2 className="font-semibold text-base">Record video</h2>
               <Button
                 variant="ghost"
@@ -585,7 +585,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
                 <X className="w-5 h-5" />
               </Button>
             </div>
-            <div className="p-5">
+            <div className="p-4 sm:p-5 overflow-y-auto">
               <CameraRecorder
                 channelId={user?._id}
                 channelName={user?.channelname}
@@ -595,6 +595,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
           </div>
         </>
       )}
+
     </>
   );
 };

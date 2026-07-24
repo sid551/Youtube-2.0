@@ -23,12 +23,13 @@ export default function CategoryTabs() {
   const [activeCategory, setActiveCategory] = useState("All");
 
   return (
-    <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+    <div className="flex gap-2 mb-4 sm:mb-6 overflow-x-auto pb-2 pt-1 no-scrollbar scroll-smooth">
       {categories.map((category) => (
         <Button
           key={category}
           variant={activeCategory === category ? "default" : "secondary"}
-          className="whitespace-nowrap"
+          size="sm"
+          className="whitespace-nowrap rounded-lg text-xs sm:text-sm font-medium px-3.5 py-1.5 shrink-0 transition-colors"
           onClick={() => setActiveCategory(category)}
         >
           {category}
@@ -37,3 +38,4 @@ export default function CategoryTabs() {
     </div>
   );
 }
+

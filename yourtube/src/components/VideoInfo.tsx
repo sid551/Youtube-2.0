@@ -296,89 +296,91 @@ const VideoInfo = ({ video }: any) => {
             </Button>
           )}
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center bg-gray-100 rounded-full">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 w-full sm:w-auto shrink-0 scroll-smooth">
+          <div className="flex items-center bg-gray-100 dark:bg-zinc-800 rounded-full shrink-0">
             <Button
               variant="ghost"
               size="sm"
-              className="rounded-l-full"
+              className="rounded-l-full px-3"
               onClick={handleLike}
             >
               <ThumbsUp
-                className={`w-5 h-5 mr-1 ${
-                  isLiked ? "fill-black text-black" : ""
+                className={`w-4 h-4 sm:w-5 sm:h-5 mr-1 ${
+                  isLiked ? "fill-black dark:fill-white text-black dark:text-white" : ""
                 }`}
               />
-              <span className="text-sm">{likes.toLocaleString()}</span>
+              <span className="text-xs sm:text-sm">{likes.toLocaleString()}</span>
             </Button>
-            <div className="w-px h-6 bg-gray-300" />
+            <div className="w-px h-6 bg-gray-300 dark:bg-zinc-700" />
             <Button
               variant="ghost"
               size="sm"
-              className="rounded-r-full"
+              className="rounded-r-full px-3"
               onClick={handleDislike}
             >
               <ThumbsDown
-                className={`w-5 h-5 mr-1 ${
-                  isDisliked ? "fill-black text-black" : ""
+                className={`w-4 h-4 sm:w-5 sm:h-5 mr-1 ${
+                  isDisliked ? "fill-black dark:fill-white text-black dark:text-white" : ""
                 }`}
               />
-              <span className="text-sm">{dislikes.toLocaleString()}</span>
+              <span className="text-xs sm:text-sm">{dislikes.toLocaleString()}</span>
             </Button>
           </div>
           <Button
             variant="ghost"
             size="sm"
-            className="bg-purple-600 hover:bg-purple-700 text-white dark:bg-purple-600 dark:hover:bg-purple-700 dark:text-white font-semibold rounded-full shadow-sm transition-all border border-purple-500/30 px-3.5"
+            className="bg-purple-600 hover:bg-purple-700 text-white dark:bg-purple-600 dark:hover:bg-purple-700 dark:text-white font-semibold rounded-full shadow-sm transition-all border border-purple-500/30 px-3.5 shrink-0"
             onClick={handleCreateWatchParty}
             disabled={isCreatingParty}
           >
             <Users className="w-4 h-4 mr-1.5 text-white" />
-            <span className="text-white font-semibold text-sm">
+            <span className="text-white font-semibold text-xs sm:text-sm whitespace-nowrap">
               {isCreatingParty ? "Creating..." : "Watch Party"}
             </span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className={`bg-gray-100 rounded-full ${
-              isWatchLater ? "text-primary" : ""
+            className={`bg-gray-100 dark:bg-zinc-800 rounded-full shrink-0 ${
+              isWatchLater ? "text-primary font-medium" : ""
             }`}
             onClick={handleWatchLater}
           >
             <Clock className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">
+            <span className="text-xs sm:text-sm whitespace-nowrap">
               {isWatchLater ? "Saved" : "Watch Later"}
             </span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className="bg-gray-100 rounded-full"
+            className="bg-gray-100 dark:bg-zinc-800 rounded-full shrink-0"
+            onClick={() => {
+              if (navigator.share) {
+                navigator.share({ title: video.videotitle, url: window.location.href });
+              } else {
+                navigator.clipboard.writeText(window.location.href);
+                toast.success("Link copied to clipboard!");
+              }
+            }}
           >
             <Share className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Share</span>
+            <span className="text-xs sm:text-sm whitespace-nowrap">Share</span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className="bg-gray-100 rounded-full"
+            className="bg-gray-100 dark:bg-zinc-800 rounded-full shrink-0"
             onClick={handleDownload}
             disabled={isDownloading}
           >
             <Download className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">
+            <span className="text-xs sm:text-sm whitespace-nowrap">
               {isDownloading ? "Downloading..." : "Download"}
             </span>
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="bg-gray-100 rounded-full"
-          >
-            <MoreHorizontal className="w-5 h-5" />
-          </Button>
         </div>
+
       </div>
       <div className="bg-gray-100 rounded-lg p-4">
         <div className="flex gap-4 text-sm font-medium mb-2">

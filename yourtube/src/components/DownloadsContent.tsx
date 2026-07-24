@@ -120,41 +120,43 @@ export default function DownloadsContent() {
         <div className="space-y-4">
           <p className="text-sm text-gray-600">{downloads.length} downloaded</p>
           {downloads.map((item) => (
-            <div key={item._id} className="flex gap-4 group">
+            <div key={item._id} className="flex flex-col xs:flex-row gap-3 sm:gap-4 group bg-white dark:bg-zinc-900 xs:bg-transparent p-2.5 xs:p-0 rounded-xl">
               <Link
                 href={`/watch/${item.videoid._id}`}
-                className="flex-shrink-0"
+                className="flex-shrink-0 w-full xs:w-40 sm:w-48"
               >
-                <div className="relative w-40 aspect-video bg-gray-100 rounded overflow-hidden">
+                <div className="relative w-full aspect-video bg-gray-100 dark:bg-zinc-800 rounded-xl overflow-hidden shadow-sm">
                   <video
                     src={getVideoUrl(item.videoid?.filepath)}
-                    className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-200"
+                    className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
+                    preload="metadata"
                   />
                 </div>
               </Link>
               <div className="flex-1 min-w-0">
                 <Link href={`/watch/${item.videoid._id}`}>
-                  <h3 className="font-medium text-sm line-clamp-2 group-hover:text-blue-600 mb-1">
+                  <h3 className="font-medium text-xs sm:text-sm line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 mb-1 text-gray-900 dark:text-gray-100">
                     {item.videoid.videotitle}
                   </h3>
                 </Link>
                 {item.videoid?.uploader && item.videoid.uploader !== "undefined" ? (
                   <Link href={`/channel/${item.videoid.uploader}`}>
-                    <p className="text-sm text-gray-600 hover:underline hover:text-black">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 hover:underline hover:text-gray-900 dark:hover:text-gray-200 truncate">
                       {item.videoid.videochanel}
                     </p>
                   </Link>
                 ) : (
-                  <p className="text-sm text-gray-600">
+                  <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
                     {item.videoid.videochanel}
                   </p>
                 )}
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
                   Downloaded {formatDistanceToNow(new Date(item.createdAt))} ago
                 </p>
               </div>
             </div>
           ))}
+
         </div>
       )}
     </div>

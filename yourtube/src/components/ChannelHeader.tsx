@@ -59,28 +59,29 @@ const ChannelHeader = ({ channel, user }: any) => {
 
   return (
     <div className="w-full">
-      <div className="relative h-32 md:h-48 lg:h-64 bg-gradient-to-r from-blue-400 to-purple-500 overflow-hidden" />
+      <div className="relative h-28 sm:h-40 md:h-52 lg:h-64 bg-gradient-to-r from-red-600 via-purple-600 to-indigo-600 overflow-hidden shadow-inner" />
 
-      <div className="px-4 py-6">
-        <div className="flex flex-col md:flex-row gap-6 items-start">
-          <Avatar className="w-20 h-20 md:w-32 md:h-32">
-            <AvatarFallback className="text-2xl">
-              {channel?.channelname?.[0]}
+      <div className="px-3 sm:px-6 py-4 sm:py-6">
+        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-start sm:items-center">
+          <Avatar className="w-16 h-16 sm:w-24 sm:h-24 md:w-28 md:h-28 border-4 border-white dark:border-zinc-900 shadow-md -mt-10 sm:-mt-12 shrink-0">
+            <AvatarFallback className="text-xl sm:text-3xl font-bold bg-zinc-800 text-white">
+              {channel?.channelname?.[0] || "C"}
             </AvatarFallback>
           </Avatar>
 
-          <div className="flex-1 space-y-2">
-            <h1 className="text-2xl md:text-4xl font-bold">
+          <div className="flex-1 space-y-1 sm:space-y-2 min-w-0 w-full">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate text-gray-900 dark:text-gray-100">
               {channel?.channelname}
             </h1>
-            <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-              <span>
+            <div className="flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+              <span className="font-medium">
                 @{channel?.channelname?.toLowerCase().replace(/\s+/g, "")}
               </span>
+              <span>•</span>
               <span>{fmt(subscriberCount)} subscribers</span>
             </div>
             {channel?.description && (
-              <p className="text-sm text-gray-700 max-w-2xl">
+              <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 max-w-2xl line-clamp-2 sm:line-clamp-none mt-1">
                 {channel.description}
               </p>
             )}
@@ -90,11 +91,11 @@ const ChannelHeader = ({ channel, user }: any) => {
             <Button
               onClick={handleSubscribe}
               disabled={loading}
-              className={
+              className={`w-full sm:w-auto shrink-0 rounded-full font-medium ${
                 isSubscribed
-                  ? "bg-gray-100 text-gray-800 hover:bg-gray-200 border border-gray-300"
+                  ? "bg-gray-100 text-gray-800 hover:bg-gray-200 border border-gray-300 dark:bg-zinc-800 dark:text-gray-200 dark:border-zinc-700"
                   : "bg-red-600 hover:bg-red-700 text-white"
-              }
+              }`}
             >
               {isSubscribed ? "Subscribed" : "Subscribe"}
             </Button>
@@ -106,3 +107,4 @@ const ChannelHeader = ({ channel, user }: any) => {
 };
 
 export default ChannelHeader;
+

@@ -87,39 +87,40 @@ export default function HistoryContent() {
 
       <div className="space-y-4">
         {history.map((item) => (
-          <div key={item._id} className="flex gap-4 group">
-            <Link href={`/watch/${item.videoid._id}`} className="flex-shrink-0">
-              <div className="relative w-40 aspect-video bg-gray-100 rounded overflow-hidden">
+          <div key={item._id} className="flex flex-col xs:flex-row gap-3 sm:gap-4 group bg-white dark:bg-zinc-900 xs:bg-transparent p-2.5 xs:p-0 rounded-xl">
+            <Link href={`/watch/${item.videoid._id}`} className="flex-shrink-0 w-full xs:w-40 sm:w-48">
+              <div className="relative w-full aspect-video bg-gray-100 dark:bg-zinc-800 rounded-xl overflow-hidden shadow-sm">
                 <video
                   src={getVideoUrl(item.videoid?.filepath)}
-                  className="object-cover group-hover:scale-105 transition-transform duration-200"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  preload="metadata"
                 />
               </div>
             </Link>
 
             <div className="flex-1 min-w-0">
               <Link href={`/watch/${item.videoid._id}`}>
-                <h3 className="font-medium text-sm line-clamp-2 group-hover:text-blue-600 mb-1">
+                <h3 className="font-medium text-xs sm:text-sm line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 mb-1 text-gray-900 dark:text-gray-100">
                   {item.videoid.videotitle}
                 </h3>
               </Link>
               {item.videoid?.uploader && item.videoid.uploader !== "undefined" ? (
                 <Link href={`/channel/${item.videoid.uploader}`}>
-                  <p className="text-sm text-gray-600 hover:underline hover:text-black">
+                  <p className="text-xs text-gray-600 dark:text-gray-400 hover:underline hover:text-gray-900 dark:hover:text-gray-200 truncate">
                     {item.videoid.videochanel}
                   </p>
                 </Link>
               ) : (
-                <p className="text-sm text-gray-600">
+                <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
                   {item.videoid.videochanel}
                 </p>
               )}
-              <p className="text-sm text-gray-600">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                 {item.videoid.views.toLocaleString()} views •{" "}
                 {formatDistanceToNow(new Date(item.videoid.createdAt))} ago
               </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Added {formatDistanceToNow(new Date(item.createdAt))} ago
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+                Watched {formatDistanceToNow(new Date(item.createdAt))} ago
               </p>
             </div>
 
@@ -128,7 +129,7 @@ export default function HistoryContent() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="opacity-0 group-hover:opacity-100"
+                  className="self-start sm:self-center opacity-80 sm:opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <MoreVertical className="w-4 h-4" />
                 </Button>
@@ -144,6 +145,7 @@ export default function HistoryContent() {
             </DropdownMenu>
           </div>
         ))}
+
       </div>
     </div>
   );

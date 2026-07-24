@@ -73,24 +73,25 @@ const SearchResult = ({ query }: { query: string }) => {
           const hasUploader =
             video.uploader && video.uploader !== "undefined";
           return (
-            <div key={video._id} className="flex flex-col sm:flex-row gap-4 group">
-              <Link href={`/watch/${video._id}`} className="flex-shrink-0">
-                <div className="relative w-full sm:w-80 aspect-video bg-gray-100 rounded-lg overflow-hidden">
+            <div key={video._id} className="flex flex-col sm:flex-row gap-3 sm:gap-4 group bg-white dark:bg-zinc-900 sm:bg-transparent p-2 sm:p-0 rounded-xl">
+              <Link href={`/watch/${video._id}`} className="flex-shrink-0 w-full sm:w-64 md:w-80">
+                <div className="relative w-full aspect-video bg-gray-100 dark:bg-zinc-800 rounded-xl overflow-hidden shadow-sm">
                   <video
                     src={getVideoUrl(video.filepath)}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    preload="metadata"
                   />
                 </div>
               </Link>
 
-              <div className="flex-1 min-w-0 py-1">
+              <div className="flex-1 min-w-0 py-0.5">
                 <Link href={`/watch/${video._id}`}>
-                  <h3 className="font-medium text-base sm:text-lg line-clamp-2 group-hover:text-blue-600 mb-2">
+                  <h3 className="font-medium text-sm sm:text-base lg:text-lg line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 mb-1 sm:mb-2 text-gray-900 dark:text-gray-100">
                     {video.videotitle}
                   </h3>
                 </Link>
 
-                <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 mb-2">
+                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-2">
                   <span>{video.views?.toLocaleString() || 0} views</span>
                   <span>•</span>
                   <span>
@@ -103,25 +104,25 @@ const SearchResult = ({ query }: { query: string }) => {
                 {hasUploader ? (
                   <Link
                     href={`/channel/${video.uploader}`}
-                    className="flex items-center gap-2 mb-2 hover:text-blue-600 w-fit"
+                    className="flex items-center gap-2 mb-2 hover:text-blue-600 dark:hover:text-blue-400 w-fit"
                   >
-                    <Avatar className="w-6 h-6">
-                      <AvatarFallback className="text-xs">
+                    <Avatar className="w-6 h-6 border border-gray-200 dark:border-zinc-800">
+                      <AvatarFallback className="text-[10px] font-semibold">
                         {video.videochanel?.[0] || "C"}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium text-gray-700 hover:underline">
+                    <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hover:underline">
                       {video.videochanel}
                     </span>
                   </Link>
                 ) : (
                   <div className="flex items-center gap-2 mb-2">
-                    <Avatar className="w-6 h-6">
-                      <AvatarFallback className="text-xs">
+                    <Avatar className="w-6 h-6 border border-gray-200 dark:border-zinc-800">
+                      <AvatarFallback className="text-[10px] font-semibold">
                         {video.videochanel?.[0] || "C"}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium text-gray-700">
+                    <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                       {video.videochanel}
                     </span>
                   </div>
@@ -129,6 +130,7 @@ const SearchResult = ({ query }: { query: string }) => {
               </div>
             </div>
           );
+
         })}
       </div>
 
