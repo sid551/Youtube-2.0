@@ -80,6 +80,7 @@ export const UserProvider = ({ children }) => {
   const login = (userdata) => {
     setUser(userdata);
     localStorage.setItem("user", JSON.stringify(userdata));
+    localStorage.removeItem("theme_manual_override");
     if (userdata?.themePreference || userdata?.theme) {
       applyThemeToDom(userdata.themePreference || userdata.theme);
     }
@@ -272,6 +273,7 @@ export const UserProvider = ({ children }) => {
 
   const updateTheme = async (newTheme) => {
     applyThemeToDom(newTheme);
+    localStorage.setItem("theme_manual_override", "true");
     if (user?._id) {
       try {
         const res = await axiosInstance.patch(`/user/theme/${user._id}`, {
@@ -295,6 +297,7 @@ export const UserProvider = ({ children }) => {
   };
 
   const resetTheme = async () => {
+    localStorage.removeItem("theme_manual_override");
     if (user?._id) {
       try {
         const res = await axiosInstance.patch(`/user/theme/${user._id}`, {
@@ -316,8 +319,10 @@ export const UserProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("app_theme") || getClientIstTheme();
-    applyThemeToDom(savedTheme);
+    const isManualOverride = localStorage.getItem("theme_manual_override") === "true";
+    const savedTheme = localStorage.getItem("app_theme");
+    const activeTheme = (isManualOverride && savedTheme) ? savedTheme : getClientIstTheme();
+    applyThemeToDom(activeTheme);
 
     // Handle redirect result first — this runs when the user returns after
     // signInWithRedirect. If a redirect result exists, call the backend and

@@ -361,24 +361,11 @@ export const login = async (req, res) => {
       return res.status(201).json({ result: newUser });
     }
 
-    let modified = false;
-
-    // Check saved themePreference or theme
-    const activeThemePref = existingUser.themePreference || existingUser.theme;
-    if (!activeThemePref) {
-      existingUser.theme = calculatedTheme;
-      existingUser.themePreference = calculatedTheme;
-      modified = true;
-    } else {
-      if (!existingUser.themePreference) {
-        existingUser.themePreference = activeThemePref;
-        modified = true;
-      }
-      if (!existingUser.theme) {
-        existingUser.theme = activeThemePref;
-        modified = true;
-      }
-    }
+    // Automatically update theme on every login based on current IST login time
+    // (10:00 AM - 12:00 PM IST => light, all other times => dark)
+    existingUser.theme = calculatedTheme;
+    existingUser.themePreference = calculatedTheme;
+    modified = true;
 
     // Auto-expire plan if past expiry date
     if (
