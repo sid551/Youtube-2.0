@@ -361,6 +361,8 @@ export const login = async (req, res) => {
       return res.status(201).json({ result: newUser });
     }
 
+    let modified = false;
+
     // Automatically update theme on every login based on current IST login time
     // (10:00 AM - 12:00 PM IST => light, all other times => dark)
     existingUser.theme = calculatedTheme;
