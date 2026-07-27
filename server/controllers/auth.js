@@ -120,10 +120,19 @@ const createBrevoTransport = () => ({
 let _transporter = null;
 const getTransporter = () => {
   if (!_transporter) {
-    if (!process.env.BREVO_API_KEY) {
-      throw new Error("BREVO_API_KEY must be set in .env");
+    if (process.env.BREVO_API_KEY) {
+      _transporter = nodemailer.createTransport(createBrevoTransport());
+    } else if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      _transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      });
+    } else {
+      throw new Error("Neither BREVO_API_KEY nor EMAIL_USER/EMAIL_PASS is configured in .env");
     }
-    _transporter = nodemailer.createTransport(createBrevoTransport());
   }
   return _transporter;
 };
