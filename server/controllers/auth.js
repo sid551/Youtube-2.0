@@ -226,17 +226,44 @@ const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) =>
     </div>
   `;
 
-  try {
-    await getTransporter().sendMail({
-      from: `"YourTube Security" <${process.env.EMAIL_USER}>`,
-      to: toEmail,
-      subject: `YourTube Security Verification Code: ${otpCode}`,
-      html,
-    });
-    console.log(`[OTP SENT] Successfully sent OTP to ${toEmail}`);
-  } catch (err) {
-    resetTransporter();
-    console.error(`[OTP EMAIL ERROR] Failed to send OTP to ${toEmail}:`, err.message);
+  const fromEmail = process.env.EMAIL_USER || "siddhu13072005@gmail.com";
+  const mailOptions = {
+    from: `"YourTube Security" <${fromEmail}>`,
+    to: toEmail,
+    subject: `YourTube Security Verification Code: ${otpCode}`,
+    html,
+  };
+
+  console.log(`\n==================================================`);
+  console.log(`[SECURITY OTP GENERATED] User: ${toEmail} | Code: ${otpCode}`);
+  console.log(`==================================================\n`);
+
+  if (process.env.BREVO_API_KEY) {
+    try {
+      const brevo = nodemailer.createTransport(createBrevoTransport());
+      await brevo.sendMail(mailOptions);
+      console.log(`[OTP SENT - BREVO REST] Sent to ${toEmail}`);
+      return;
+    } catch (err) {
+      console.error(`[OTP BREVO ERROR]: ${err.message}. Trying Gmail SMTP fallback...`);
+    }
+  }
+
+  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    try {
+      const gmail = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      });
+      await gmail.sendMail(mailOptions);
+      console.log(`[OTP SENT - GMAIL SMTP] Sent to ${toEmail}`);
+      return;
+    } catch (err) {
+      console.error(`[OTP GMAIL SMTP ERROR]: ${err.message}`);
+    }
   }
 };
 
