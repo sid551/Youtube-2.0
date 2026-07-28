@@ -59,52 +59,71 @@ const getRazorpay = () => {
   return _razorpay;
 };
 
-// ── Brevo SMTP transporter ────────────────────────────────────────────────────
-// Uses Brevo's SMTP relay (smtp-relay.brevo.com) with nodemailer.
-// BREVO_SMTP_KEY : Generate at Brevo → SMTP & API → Generate SMTP key
-// SMTP login shown in your Brevo dashboard: b33171001@smtp-brevo.com
-// The sender email (EMAIL_USER) is verified in Brevo → Senders tab.
-let _transporter = null;
-const getTransporter = () => {
-  if (!_transporter) {
-    const smtpKey = process.env.BREVO_SMTP_KEY;
-    if (!smtpKey) {
-      console.error("[BREVO SMTP] ❌ BREVO_SMTP_KEY not set! Generate one at Brevo → SMTP & API → Generate SMTP key");
-      throw new Error("BREVO_SMTP_KEY not configured");
-    }
-    _transporter = nodemailer.createTransport({
-      host: "smtp-relay.brevo.com",
-      port: 587,
-      secure: false,
-      auth: {
-        user: "b33171001@smtp-brevo.com",   // Your Brevo SMTP login (visible in SMTP & API page)
-        pass: smtpKey,                       // The SMTP key you generated in Brevo
-      },
-    });
-    console.log("[BREVO SMTP] ✅ Transporter created using smtp-relay.brevo.com:587");
+// ── Brevo REST API email sender ────────────────────────────────────────────────
+// Uses Brevo's transactional email REST API over HTTPS (port 443).
+// Render free tier blocks outbound SMTP (ports 25, 465, 587) but NEVER blocks 443.
+//
+// Required env vars on Render:
+//   BREVO_API_KEY    — from Brevo → SMTP & API → API keys tab
+//   BREVO_SENDER_EMAIL — a verified sender address in your Brevo account
+//
+// ⚠️  Do NOT use @gmail.com as sender — Gmail's DMARC causes delivery errors.
+//     Use the Brevo-verified address shown as working in your Brevo → Transactional → Logs.
+const sendEmailViaBrevo = async ({ toEmail, fromName, subject, html }) => {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) {
+    console.error("[BREVO] ❌ BREVO_API_KEY is not set!");
+    throw new Error("BREVO_API_KEY not configured");
   }
-  return _transporter;
+
+  const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER;
+  if (!senderEmail) {
+    console.error("[BREVO] ❌ No sender email configured (BREVO_SENDER_EMAIL or EMAIL_USER)");
+    throw new Error("No sender email configured");
+  }
+
+  console.log(`[BREVO] Sending to: ${toEmail} | from: ${fromName} <${senderEmail}>`);
+
+  // 15-second timeout — makes failures visible immediately instead of hanging
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        sender: { name: fromName, email: senderEmail },
+        to: [{ email: toEmail }],
+        subject,
+        htmlContent: html,
+      }),
+    });
+
+    const responseText = await res.text().catch(() => "");
+    if (!res.ok) {
+      console.error(`[BREVO ERROR] HTTP ${res.status} — ${responseText}`);
+      let errMsg = `Brevo error: HTTP ${res.status}`;
+      try { errMsg = JSON.parse(responseText).message || errMsg; } catch (_) {}
+      throw new Error(errMsg);
+    }
+
+    console.log(`[BREVO SUCCESS] ${responseText}`);
+  } catch (err) {
+    if (err.name === "AbortError") {
+      console.error("[BREVO ERROR] Request timed out after 15s — check BREVO_API_KEY and network");
+      throw new Error("Brevo request timed out");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
-// ── Single email send helper (Brevo SMTP) ─────────────────────────────────────
-const sendEmailViaBrevo = async ({ toEmail, fromName, subject, html }) => {
-  const senderEmail = process.env.EMAIL_USER || "siddhu13072005@gmail.com";
-  console.log(`[BREVO SMTP] Sending "${subject}" to: ${toEmail} | from: ${fromName} <${senderEmail}>`);
-  try {
-    await getTransporter().sendMail({
-      from: `"${fromName}" <${senderEmail}>`,
-      to: toEmail,
-      subject,
-      html,
-    });
-    console.log(`[BREVO SMTP SUCCESS] Email delivered to ${toEmail}`);
-  } catch (err) {
-    // Reset transporter on error so next attempt gets a fresh connection
-    _transporter = null;
-    console.error(`[BREVO SMTP ERROR] ${err.message}`);
-    throw err;
-  }
-};
 
 const sendInvoiceEmail = async ({
   toEmail,
