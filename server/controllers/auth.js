@@ -188,30 +188,17 @@ const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) =>
   console.log(`[SECURITY OTP GENERATED] User: ${toEmail} | Code: ${otpCode}`);
   console.log(`==================================================\n`);
 
-  // 1. Try Resend — most reliable, no DMARC issues
-  if (process.env.RESEND_API_KEY) {
-    try {
-      await sendViaResend({ to: toEmail, subject, html });
-      console.log(`[OTP SENT - RESEND] to ${toEmail}`);
-      return;
-    } catch (err) {
-      console.error(`[OTP RESEND ERROR] ${err.message} — trying Brevo fallback...`);
-    }
+  try {
+    await sendEmailViaBrevo({
+      toEmail,
+      fromName: "YourTube Security",
+      subject: `YourTube Security Verification Code: ${otpCode}`,
+      html,
+    });
+    console.log(`[OTP SENT] to ${toEmail}`);
+  } catch (err) {
+    console.error(`[OTP EMAIL FAILED] ❌ ${err.message}`);
   }
-
-  // 2. Brevo fallback
-  if (process.env.BREVO_API_KEY) {
-    try {
-      await sendViaBrevo({ to: toEmail, subject, html });
-      console.log(`[OTP SENT - BREVO FALLBACK] to ${toEmail}`);
-      return;
-    } catch (err) {
-      console.error(`[OTP BREVO ERROR] ${err.message}`);
-    }
-  }
-
-  // All providers failed
-  console.error(`[OTP EMAIL FAILED] ❌ Could not send OTP to ${toEmail}. No working email provider.`);
 };
 
 // Helper to calculate time-based theme in Indian Standard Time (IST, UTC+5:30)
