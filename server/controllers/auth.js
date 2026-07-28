@@ -1,10 +1,9 @@
 import mongoose from "mongoose";
 import Razorpay from "razorpay";
 import crypto from "crypto";
-import nodemailer from "nodemailer";
-import { Resend } from "resend";
 import users from "../Modals/Auth.js";
 import video from "../Modals/video.js";
+
 
 // Plan feature definitions (single source of truth)
 export const PLAN_FEATURES = {
@@ -59,175 +58,54 @@ const getRazorpay = () => {
   return _razorpay;
 };
 
-// ── Custom Brevo HTTP transport for nodemailer ────────────────────────────────
-// Render free tier blocks ALL outbound SMTP (ports 25, 465, 587).
-// This transport keeps the nodemailer sendMail() interface unchanged but routes
-// emails through Brevo's REST API over HTTPS (port 443) which Render allows.
-// Setup: https://app.brevo.com → Settings → API Keys → copy key → add BREVO_API_KEY to .env
-const createBrevoTransport = () => ({
-  name: "BrevoHTTP",
-  version: "1.0.0",
-  send(mail, callback) {
-    const data = mail.data;
-
-    // Parse "to" — nodemailer stores it as a string or address object
-    const rawTo = data.to;
-    const toEmail =
-      typeof rawTo === "string"
-        ? rawTo
-        : rawTo?.address || String(rawTo);
-
-    // Parse "from" into name + email
-    const rawFrom = data.from || "";
-    const fromEmail =
-      typeof rawFrom === "string"
-        ? rawFrom.match(/<(.+?)>/)?.[1] || rawFrom
-        : rawFrom?.address || process.env.EMAIL_USER;
-    const fromName =
-      typeof rawFrom === "string"
-        ? rawFrom.match(/^"?(.+?)"?\s*</)?.[1]?.trim() || "YourTube"
-        : rawFrom?.name || "YourTube";
-
-    const apiKey = process.env.BREVO_API_KEY || "";
-    // Log first 10 chars so you can verify the right key is loaded (safe — not the full key)
-    console.log(`[BREVO] Sending to: ${toEmail} | From: ${fromName} <${fromEmail}>`);
-    console.log(`[BREVO] Using key starting with: ${apiKey.slice(0, 10)}... (length ${apiKey.length})`);
-
-    const payload = {
-      sender: { name: fromName, email: fromEmail },
-      to: [{ email: toEmail }],
-      subject: data.subject,
-      htmlContent: data.html,
-    };
-
-    // Node 18+ has built-in fetch — no extra package needed
-    fetch("https://api.brevo.com/v3/smtp/email", {
-      method: "POST",
-      headers: {
-        "api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    })
-      .then(async (res) => {
-        const responseText = await res.text().catch(() => "");
-        if (!res.ok) {
-          // Log the full Brevo error response for easy debugging
-          console.error(`[BREVO ERROR] HTTP ${res.status} — Full response: ${responseText}`);
-          let errMessage = `Brevo error: HTTP ${res.status}`;
-          try {
-            const parsed = JSON.parse(responseText);
-            errMessage = parsed.message || parsed.error || errMessage;
-          } catch (_) { /* not JSON */ }
-          return callback(new Error(errMessage));
-        }
-        console.log(`[BREVO SUCCESS] Email sent. Response: ${responseText}`);
-        callback(null, { messageId: `brevo-${Date.now()}@yourtube` });
-      })
-      .catch((err) => {
-        console.error(`[BREVO FETCH ERROR] Network/fetch error: ${err.message}`);
-        callback(err);
-      });
-  },
-});
-
-// ── Resend email client (primary provider — proper DKIM/DMARC, no freemail issues) ──
-// Get a free API key at https://resend.com → sign up → API Keys → create key
-// Add RESEND_API_KEY to Render env vars. Free tier: 100 emails/day, 3000/month.
-const getResend = () => {
-  if (!process.env.RESEND_API_KEY) return null;
-  return new Resend(process.env.RESEND_API_KEY);
-};
-
-// Sender shown to the recipient.
-// Resend's onboarding@resend.dev works immediately with no domain setup.
-// Once you verify a custom domain in Resend you can change this to e.g. noreply@yourdomain.com
-const RESEND_FROM = process.env.RESEND_FROM_EMAIL || "YourTube <onboarding@resend.dev>";
-
-// ── Email configuration diagnostic — logged once on first email send ──────────
-const logEmailConfig = (() => {
-  let logged = false;
-  return () => {
-    if (logged) return;
-    logged = true;
-    if (process.env.RESEND_API_KEY) {
-      console.log(`[EMAIL CONFIG] ✅ Using Resend (from: ${RESEND_FROM})`);
-    } else if (process.env.BREVO_API_KEY) {
-      console.log(`[EMAIL CONFIG] ⚠️  Resend not configured — falling back to Brevo.`);
-      console.log(`[EMAIL CONFIG]    NOTE: Brevo + @gmail.com sender causes DMARC errors. Add RESEND_API_KEY for reliable delivery.`);
-    } else {
-      console.error(`[EMAIL CONFIG] ❌ NO EMAIL PROVIDER CONFIGURED! OTP emails will NOT be sent.`);
-      console.error(`[EMAIL CONFIG]    Add RESEND_API_KEY to Render environment variables.`);
-      console.error(`[EMAIL CONFIG]    Get a free key at: https://resend.com`);
-    }
-  };
-})();
-
-// ── Helper: send via Resend (returns true on success, throws on failure) ──────
-const sendViaResend = async ({ to, subject, html }) => {
-  const resend = getResend();
-  if (!resend) throw new Error("RESEND_API_KEY not configured");
-  const { data, error } = await resend.emails.send({
-    from: RESEND_FROM,
-    to,
-    subject,
-    html,
-  });
-  if (error) {
-    console.error(`[RESEND ERROR] ${JSON.stringify(error)}`);
-    throw new Error(error.message || "Resend delivery failed");
+// ── Single Brevo send helper — used by BOTH OTP and Invoice emails ─────────────
+// BREVO_API_KEY  : Your Brevo API key (from Brevo → Settings → SMTP & API → API Keys)
+// BREVO_SENDER_EMAIL : A Brevo-native sender, e.g. noreply@11743601.brevo.com
+//   → Go to Brevo → Settings → Senders, domains, IPs → Domains tab
+//   → Copy the brevo.com subdomain shown there and use it as the sender address
+//   → This is REQUIRED — using @gmail.com causes DMARC errors (confirmed in logs)
+const sendEmailViaBrevo = async ({ toEmail, fromName, subject, html }) => {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) {
+    console.error("[BREVO] ❌ BREVO_API_KEY is not set in environment variables!");
+    throw new Error("BREVO_API_KEY not configured");
   }
-  console.log(`[RESEND SUCCESS] Email sent. id=${data?.id}`);
-};
 
-// ── Helper: send via Brevo REST (fallback) ────────────────────────────────────
-const sendViaBrevo = async ({ to, subject, html }) => {
-  const apiKey = process.env.BREVO_API_KEY || "";
-  if (!apiKey) throw new Error("BREVO_API_KEY not configured");
-  const fromEmail = process.env.EMAIL_USER || "siddhu13072005@gmail.com";
-  console.log(`[BREVO FALLBACK] Sending to: ${to} | from: ${fromEmail}`);
+  // BREVO_SENDER_EMAIL must be your Brevo-native address (e.g. noreply@11743601.brevo.com)
+  // NOT @gmail.com — Gmail's DMARC policy blocks third-party sending
+  const senderEmail = process.env.BREVO_SENDER_EMAIL;
+  if (!senderEmail) {
+    console.error("[BREVO] ❌ BREVO_SENDER_EMAIL is not set!");
+    console.error("[BREVO]    Go to Brevo → Settings → Senders, domains, IPs → Domains tab");
+    console.error("[BREVO]    Copy your brevo.com subdomain and set: BREVO_SENDER_EMAIL=noreply@XXXXXX.brevo.com");
+    throw new Error("BREVO_SENDER_EMAIL not configured");
+  }
+
+  console.log(`[BREVO] Sending "${subject}" to: ${toEmail} | from: ${fromName} <${senderEmail}>`);
+
   const res = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
-    headers: { "api-key": apiKey, "Content-Type": "application/json" },
+    headers: {
+      "api-key": apiKey,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
-      sender: { name: "YourTube", email: fromEmail },
-      to: [{ email: to }],
+      sender: { name: fromName, email: senderEmail },
+      to: [{ email: toEmail }],
       subject,
       htmlContent: html,
     }),
   });
+
   const responseText = await res.text().catch(() => "");
   if (!res.ok) {
     console.error(`[BREVO ERROR] HTTP ${res.status} — ${responseText}`);
-    throw new Error(`Brevo error: HTTP ${res.status}`);
+    let errMsg = `Brevo error: HTTP ${res.status}`;
+    try { errMsg = JSON.parse(responseText).message || errMsg; } catch (_) {}
+    throw new Error(errMsg);
   }
+
   console.log(`[BREVO SUCCESS] ${responseText}`);
-};
-
-// ── Nodemailer transporter for invoice emails (Brevo or Gmail fallback) ───────
-let _transporter = null;
-const getTransporter = () => {
-  if (!_transporter) {
-    if (process.env.BREVO_API_KEY) {
-      _transporter = nodemailer.createTransport(createBrevoTransport());
-    } else if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      _transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-      });
-    } else {
-      throw new Error("Neither BREVO_API_KEY nor EMAIL_USER/EMAIL_PASS is configured in .env");
-    }
-  }
-  return _transporter;
-};
-
-// Reset so next call gets a fresh transport (e.g. after an API key rotation)
-const resetTransporter = () => {
-  _transporter = null;
 };
 
 const sendInvoiceEmail = async ({
@@ -256,8 +134,8 @@ const sendInvoiceEmail = async ({
           <table style="width:100%;border-collapse:collapse;font-size:14px">
             <tr><td style="padding:6px 0;color:#6b7280">Plan</td><td style="padding:6px 0;font-weight:600;color:#111827">${planInfo.label}</td></tr>
             <tr><td style="padding:6px 0;color:#6b7280">Amount Paid</td><td style="padding:6px 0;font-weight:600;color:#16a34a">&#8377;${amount}</td></tr>
-            <tr><td style="padding:6px 0;color:#6b7280">Order ID</td><td style="padding:6px 0;color:#374151">${orderId}</td></tr>
-            <tr><td style="padding:6px 0;color:#6b7280">Payment ID</td><td style="padding:6px 0;color:#374151">${paymentId}</td></tr>
+            <tr><td style="padding:6px 0;color:#6b7280">Order ID</td><td style="padding:6px 0;font-weight:600;color:#374151">${orderId}</td></tr>
+            <tr><td style="padding:6px 0;color:#6b7280">Payment ID</td><td style="padding:6px 0;font-weight:600;color:#374151">${paymentId}</td></tr>
             <tr><td style="padding:6px 0;color:#6b7280">Valid From</td><td style="padding:6px 0;color:#374151">${now.toDateString()}</td></tr>
             <tr><td style="padding:6px 0;color:#6b7280">Valid Until</td><td style="padding:6px 0;color:#374151">${expiresAt.toDateString()}</td></tr>
           </table>
@@ -273,26 +151,13 @@ const sendInvoiceEmail = async ({
     </div>
   `;
 
-  const subject = `YourTube ${planInfo.label} Plan — Payment Confirmed`;
-
-  // Try Resend first (most reliable), then Brevo
-  if (process.env.RESEND_API_KEY) {
-    try {
-      await sendViaResend({ to: toEmail, subject, html });
-      console.log(`[INVOICE SENT - RESEND] to ${toEmail}`);
-      return;
-    } catch (err) {
-      console.error(`[INVOICE RESEND ERROR] ${err.message} — trying Brevo fallback...`);
-    }
-  }
-
-  try {
-    await sendViaBrevo({ to: toEmail, subject, html });
-    console.log(`[INVOICE SENT - BREVO] to ${toEmail}`);
-  } catch (err) {
-    console.error(`[INVOICE EMAIL ERROR] Failed to send invoice to ${toEmail}:`, err.message);
-    throw err;
-  }
+  await sendEmailViaBrevo({
+    toEmail,
+    fromName: "YourTube",
+    subject: `YourTube ${planInfo.label} Plan — Payment Confirmed`,
+    html,
+  });
+  console.log(`[INVOICE SENT] to ${toEmail}`);
 };
 
 const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) => {
@@ -320,11 +185,6 @@ const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) =>
       </div>
     </div>
   `;
-
-  const subject = `YourTube Security Verification Code: ${otpCode}`;
-
-  // Log which email provider is active (runs once on first OTP)
-  logEmailConfig();
 
   console.log(`\n==================================================`);
   console.log(`[SECURITY OTP GENERATED] User: ${toEmail} | Code: ${otpCode}`);
