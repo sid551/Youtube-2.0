@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import users from "../Modals/Auth.js";
 import video from "../Modals/video.js";
 
@@ -130,26 +131,80 @@ const createBrevoTransport = () => ({
   },
 });
 
+// ── Resend email client (primary provider — proper DKIM/DMARC, no freemail issues) ──
+// Get a free API key at https://resend.com → sign up → API Keys → create key
+// Add RESEND_API_KEY to Render env vars. Free tier: 100 emails/day, 3000/month.
+const getResend = () => {
+  if (!process.env.RESEND_API_KEY) return null;
+  return new Resend(process.env.RESEND_API_KEY);
+};
+
+// Sender shown to the recipient.
+// Resend's onboarding@resend.dev works immediately with no domain setup.
+// Once you verify a custom domain in Resend you can change this to e.g. noreply@yourdomain.com
+const RESEND_FROM = process.env.RESEND_FROM_EMAIL || "YourTube <onboarding@resend.dev>";
+
 // ── Email configuration diagnostic — logged once on first email send ──────────
 const logEmailConfig = (() => {
   let logged = false;
   return () => {
     if (logged) return;
     logged = true;
-    if (process.env.BREVO_API_KEY) {
-      console.log(`[EMAIL CONFIG] ✅ Using Brevo REST API (key length: ${process.env.BREVO_API_KEY.length})`);
-    } else if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      console.log(`[EMAIL CONFIG] ⚠️  Using Gmail SMTP as fallback (user: ${process.env.EMAIL_USER})`);
-      console.log(`[EMAIL CONFIG]    NOTE: Gmail SMTP may be blocked on cloud hosting. Add BREVO_API_KEY to .env for reliable email delivery.`);
+    if (process.env.RESEND_API_KEY) {
+      console.log(`[EMAIL CONFIG] ✅ Using Resend (from: ${RESEND_FROM})`);
+    } else if (process.env.BREVO_API_KEY) {
+      console.log(`[EMAIL CONFIG] ⚠️  Resend not configured — falling back to Brevo.`);
+      console.log(`[EMAIL CONFIG]    NOTE: Brevo + @gmail.com sender causes DMARC errors. Add RESEND_API_KEY for reliable delivery.`);
     } else {
       console.error(`[EMAIL CONFIG] ❌ NO EMAIL PROVIDER CONFIGURED! OTP emails will NOT be sent.`);
-      console.error(`[EMAIL CONFIG]    Add BREVO_API_KEY to your .env file.`);
-      console.error(`[EMAIL CONFIG]    Get a free key at: https://app.brevo.com → Settings → API Keys`);
+      console.error(`[EMAIL CONFIG]    Add RESEND_API_KEY to Render environment variables.`);
+      console.error(`[EMAIL CONFIG]    Get a free key at: https://resend.com`);
     }
   };
 })();
 
+// ── Helper: send via Resend (returns true on success, throws on failure) ──────
+const sendViaResend = async ({ to, subject, html }) => {
+  const resend = getResend();
+  if (!resend) throw new Error("RESEND_API_KEY not configured");
+  const { data, error } = await resend.emails.send({
+    from: RESEND_FROM,
+    to,
+    subject,
+    html,
+  });
+  if (error) {
+    console.error(`[RESEND ERROR] ${JSON.stringify(error)}`);
+    throw new Error(error.message || "Resend delivery failed");
+  }
+  console.log(`[RESEND SUCCESS] Email sent. id=${data?.id}`);
+};
 
+// ── Helper: send via Brevo REST (fallback) ────────────────────────────────────
+const sendViaBrevo = async ({ to, subject, html }) => {
+  const apiKey = process.env.BREVO_API_KEY || "";
+  if (!apiKey) throw new Error("BREVO_API_KEY not configured");
+  const fromEmail = process.env.EMAIL_USER || "siddhu13072005@gmail.com";
+  console.log(`[BREVO FALLBACK] Sending to: ${to} | from: ${fromEmail}`);
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: { "api-key": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sender: { name: "YourTube", email: fromEmail },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
+  });
+  const responseText = await res.text().catch(() => "");
+  if (!res.ok) {
+    console.error(`[BREVO ERROR] HTTP ${res.status} — ${responseText}`);
+    throw new Error(`Brevo error: HTTP ${res.status}`);
+  }
+  console.log(`[BREVO SUCCESS] ${responseText}`);
+};
+
+// ── Nodemailer transporter for invoice emails (Brevo or Gmail fallback) ───────
 let _transporter = null;
 const getTransporter = () => {
   if (!_transporter) {
@@ -218,16 +273,23 @@ const sendInvoiceEmail = async ({
     </div>
   `;
 
+  const subject = `YourTube ${planInfo.label} Plan — Payment Confirmed`;
+
+  // Try Resend first (most reliable), then Brevo
+  if (process.env.RESEND_API_KEY) {
+    try {
+      await sendViaResend({ to: toEmail, subject, html });
+      console.log(`[INVOICE SENT - RESEND] to ${toEmail}`);
+      return;
+    } catch (err) {
+      console.error(`[INVOICE RESEND ERROR] ${err.message} — trying Brevo fallback...`);
+    }
+  }
+
   try {
-    await getTransporter().sendMail({
-      from: `"YourTube" <${process.env.EMAIL_USER}>`,
-      to: toEmail,
-      subject: `YourTube ${planInfo.label} Plan — Payment Confirmed`,
-      html,
-    });
-    console.log(`[INVOICE SENT] Successfully sent invoice to ${toEmail}`);
+    await sendViaBrevo({ to: toEmail, subject, html });
+    console.log(`[INVOICE SENT - BREVO] to ${toEmail}`);
   } catch (err) {
-    resetTransporter();
     console.error(`[INVOICE EMAIL ERROR] Failed to send invoice to ${toEmail}:`, err.message);
     throw err;
   }
@@ -259,54 +321,39 @@ const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) =>
     </div>
   `;
 
-  const fromEmail = process.env.EMAIL_USER || "siddhu13072005@gmail.com";
-  const mailOptions = {
-    from: `"YourTube Security" <${fromEmail}>`,
-    to: toEmail,
-    subject: `YourTube Security Verification Code: ${otpCode}`,
-    html,
-  };
+  const subject = `YourTube Security Verification Code: ${otpCode}`;
 
-  // Log which email provider is active (runs once)
+  // Log which email provider is active (runs once on first OTP)
   logEmailConfig();
 
   console.log(`\n==================================================`);
   console.log(`[SECURITY OTP GENERATED] User: ${toEmail} | Code: ${otpCode}`);
   console.log(`==================================================\n`);
 
+  // 1. Try Resend — most reliable, no DMARC issues
+  if (process.env.RESEND_API_KEY) {
+    try {
+      await sendViaResend({ to: toEmail, subject, html });
+      console.log(`[OTP SENT - RESEND] to ${toEmail}`);
+      return;
+    } catch (err) {
+      console.error(`[OTP RESEND ERROR] ${err.message} — trying Brevo fallback...`);
+    }
+  }
+
+  // 2. Brevo fallback
   if (process.env.BREVO_API_KEY) {
     try {
-      const brevo = nodemailer.createTransport(createBrevoTransport());
-      await brevo.sendMail(mailOptions);
-      console.log(`[OTP SENT - BREVO REST] Sent to ${toEmail}`);
+      await sendViaBrevo({ to: toEmail, subject, html });
+      console.log(`[OTP SENT - BREVO FALLBACK] to ${toEmail}`);
       return;
     } catch (err) {
-      console.error(`[OTP BREVO ERROR]: ${err.message}. Trying Gmail SMTP fallback...`);
+      console.error(`[OTP BREVO ERROR] ${err.message}`);
     }
   }
 
-  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    try {
-      const gmail = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-      });
-      await gmail.sendMail(mailOptions);
-      console.log(`[OTP SENT - GMAIL SMTP] Sent to ${toEmail}`);
-      return;
-    } catch (err) {
-      console.error(`[OTP GMAIL SMTP ERROR] Full error: ${err.message}`);
-      if (err.code) console.error(`[OTP GMAIL SMTP ERROR] Error code: ${err.code}`);
-      if (err.response) console.error(`[OTP GMAIL SMTP ERROR] SMTP response: ${err.response}`);
-    }
-  }
-
-  // Both providers failed — OTP email was NOT sent
-  console.error(`[OTP EMAIL FAILED] ❌ Could not send OTP to ${toEmail}. Check the errors above.`);
-  console.error(`[OTP EMAIL FAILED]    To fix: Add BREVO_API_KEY to your .env and restart the server.`);
+  // All providers failed
+  console.error(`[OTP EMAIL FAILED] ❌ Could not send OTP to ${toEmail}. No working email provider.`);
 };
 
 // Helper to calculate time-based theme in Indian Standard Time (IST, UTC+5:30)
