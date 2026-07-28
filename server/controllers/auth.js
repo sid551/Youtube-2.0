@@ -62,7 +62,7 @@ const getRazorpay = () => {
 // Render free tier blocks ALL outbound SMTP (ports 25, 465, 587).
 // This transport keeps the nodemailer sendMail() interface unchanged but routes
 // emails through Brevo's REST API over HTTPS (port 443) which Render allows.
-// Setup: https://app.brevo.com → Settings → API Keys → copy key → add BREVO_API_KEY to Render env
+// Setup: https://app.brevo.com → Settings → API Keys → copy key → add BREVO_API_KEY to .env
 const createBrevoTransport = () => ({
   name: "BrevoHTTP",
   version: "1.0.0",
@@ -89,32 +89,65 @@ const createBrevoTransport = () => ({
 
     const apiKey = process.env.BREVO_API_KEY || "";
     // Log first 10 chars so you can verify the right key is loaded (safe — not the full key)
+    console.log(`[BREVO] Sending to: ${toEmail} | From: ${fromName} <${fromEmail}>`);
     console.log(`[BREVO] Using key starting with: ${apiKey.slice(0, 10)}... (length ${apiKey.length})`);
+
+    const payload = {
+      sender: { name: fromName, email: fromEmail },
+      to: [{ email: toEmail }],
+      subject: data.subject,
+      htmlContent: data.html,
+    };
 
     // Node 18+ has built-in fetch — no extra package needed
     fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
-        "api-key": process.env.BREVO_API_KEY,
+        "api-key": apiKey,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        sender: { name: fromName, email: fromEmail },
-        to: [{ email: toEmail }],
-        subject: data.subject,
-        htmlContent: data.html,
-      }),
+      body: JSON.stringify(payload),
     })
       .then(async (res) => {
+        const responseText = await res.text().catch(() => "");
         if (!res.ok) {
-          const err = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
-          return callback(new Error(err.message || `Brevo error: ${res.status}`));
+          // Log the full Brevo error response for easy debugging
+          console.error(`[BREVO ERROR] HTTP ${res.status} — Full response: ${responseText}`);
+          let errMessage = `Brevo error: HTTP ${res.status}`;
+          try {
+            const parsed = JSON.parse(responseText);
+            errMessage = parsed.message || parsed.error || errMessage;
+          } catch (_) { /* not JSON */ }
+          return callback(new Error(errMessage));
         }
+        console.log(`[BREVO SUCCESS] Email sent. Response: ${responseText}`);
         callback(null, { messageId: `brevo-${Date.now()}@yourtube` });
       })
-      .catch((err) => callback(err));
+      .catch((err) => {
+        console.error(`[BREVO FETCH ERROR] Network/fetch error: ${err.message}`);
+        callback(err);
+      });
   },
 });
+
+// ── Email configuration diagnostic — logged once on first email send ──────────
+const logEmailConfig = (() => {
+  let logged = false;
+  return () => {
+    if (logged) return;
+    logged = true;
+    if (process.env.BREVO_API_KEY) {
+      console.log(`[EMAIL CONFIG] ✅ Using Brevo REST API (key length: ${process.env.BREVO_API_KEY.length})`);
+    } else if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      console.log(`[EMAIL CONFIG] ⚠️  Using Gmail SMTP as fallback (user: ${process.env.EMAIL_USER})`);
+      console.log(`[EMAIL CONFIG]    NOTE: Gmail SMTP may be blocked on cloud hosting. Add BREVO_API_KEY to .env for reliable email delivery.`);
+    } else {
+      console.error(`[EMAIL CONFIG] ❌ NO EMAIL PROVIDER CONFIGURED! OTP emails will NOT be sent.`);
+      console.error(`[EMAIL CONFIG]    Add BREVO_API_KEY to your .env file.`);
+      console.error(`[EMAIL CONFIG]    Get a free key at: https://app.brevo.com → Settings → API Keys`);
+    }
+  };
+})();
 
 
 let _transporter = null;
@@ -234,6 +267,9 @@ const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) =>
     html,
   };
 
+  // Log which email provider is active (runs once)
+  logEmailConfig();
+
   console.log(`\n==================================================`);
   console.log(`[SECURITY OTP GENERATED] User: ${toEmail} | Code: ${otpCode}`);
   console.log(`==================================================\n`);
@@ -262,9 +298,15 @@ const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) =>
       console.log(`[OTP SENT - GMAIL SMTP] Sent to ${toEmail}`);
       return;
     } catch (err) {
-      console.error(`[OTP GMAIL SMTP ERROR]: ${err.message}`);
+      console.error(`[OTP GMAIL SMTP ERROR] Full error: ${err.message}`);
+      if (err.code) console.error(`[OTP GMAIL SMTP ERROR] Error code: ${err.code}`);
+      if (err.response) console.error(`[OTP GMAIL SMTP ERROR] SMTP response: ${err.response}`);
     }
   }
+
+  // Both providers failed — OTP email was NOT sent
+  console.error(`[OTP EMAIL FAILED] ❌ Could not send OTP to ${toEmail}. Check the errors above.`);
+  console.error(`[OTP EMAIL FAILED]    To fix: Add BREVO_API_KEY to your .env and restart the server.`);
 };
 
 // Helper to calculate time-based theme in Indian Standard Time (IST, UTC+5:30)
