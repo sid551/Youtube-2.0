@@ -220,7 +220,7 @@ const sendInvoiceEmail = async ({
 
   try {
     await getTransporter().sendMail({
-      from: `"YourTube" <${process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER}>`,
+      from: `"YourTube" <${process.env.EMAIL_USER}>`,
       to: toEmail,
       subject: `YourTube ${planInfo.label} Plan — Payment Confirmed`,
       html,
@@ -259,9 +259,7 @@ const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) =>
     </div>
   `;
 
-  // Use BREVO_SENDER_EMAIL if set (a Brevo-verified sender address).
-  // Using a @gmail.com sender through Brevo causes SPF/DKIM misalignment → spam.
-  const fromEmail = process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER || "siddhu13072005@gmail.com";
+  const fromEmail = process.env.EMAIL_USER || "siddhu13072005@gmail.com";
   const mailOptions = {
     from: `"YourTube Security" <${fromEmail}>`,
     to: toEmail,
