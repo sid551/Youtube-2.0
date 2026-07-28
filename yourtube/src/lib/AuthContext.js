@@ -90,6 +90,7 @@ export const UserProvider = ({ children }) => {
     setUser(null);
     localStorage.removeItem("user");
     otpPending.current = false;
+    redirectHandled.current = false;
     try {
       await signOut(auth);
     } catch (error) {
@@ -213,12 +214,14 @@ export const UserProvider = ({ children }) => {
 
   const closeOtpModal = () => {
     otpPending.current = false;
+    redirectHandled.current = false;
     setOtpState({
       isOpen: false,
       email: "",
       device: null,
       location: null,
     });
+    signOut(auth).catch(() => {});
   };
 
   // Detect if on a mobile device (popups are blocked on mobile)
@@ -230,6 +233,8 @@ export const UserProvider = ({ children }) => {
 
   const handlegooglesignin = async () => {
     try {
+      redirectHandled.current = false;
+      otpPending.current = false;
       if (isMobileDevice()) {
         // Mobile: use redirect (popups are blocked)
         // Mark as redirect-initiated so onAuthStateChanged doesn't double-fire
