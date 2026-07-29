@@ -4,6 +4,9 @@ import {
   signInWithRedirect,
   getRedirectResult,
   signOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
 } from "firebase/auth";
 import { useState, useEffect, useRef, useContext, createContext } from "react";
 import { provider, auth } from "./firebase";
@@ -25,12 +28,7 @@ export const UserProvider = ({ children }) => {
     location: null,
   });
 
-  // Refs to prevent duplicate backend calls:
-  // - redirectHandled: set to true once getRedirectResult calls the backend,
-  //   so onAuthStateChanged skips the duplicate call on the same page load.
-  // - otpPending: set to true while the OTP modal is open, so
-  //   onAuthStateChanged does not re-trigger a new login attempt.
-  // - loginInFlight: prevents concurrent login calls from racing.
+  // Refs to prevent duplicate backend calls
   const redirectHandled = useRef(false);
   const otpPending = useRef(false);
   const loginInFlight = useRef(false);
@@ -117,6 +115,17 @@ export const UserProvider = ({ children }) => {
     return false;
   };
 
+  // Persistent Device ID generator
+  const getDeviceId = () => {
+    if (typeof window === "undefined") return "";
+    let devId = localStorage.getItem("yourtube_device_id");
+    if (!devId) {
+      devId = "dev_" + Math.random().toString(36).substring(2, 11) + "_" + Date.now();
+      localStorage.setItem("yourtube_device_id", devId);
+    }
+    return devId;
+  };
+
   // Detect real browser and OS from navigator.userAgent
   const getDeviceInfo = () => {
     const ua = navigator.userAgent;
@@ -126,7 +135,6 @@ export const UserProvider = ({ children }) => {
     else if (/Firefox/.test(ua)) browser = "Firefox";
     else if (/Safari/.test(ua) && !/Chrome/.test(ua)) browser = "Safari";
     else if (/Chrome/.test(ua)) browser = "Chrome";
-    // Detect Brave (Brave sets navigator.brave)
     if ((navigator).brave) browser = "Brave";
 
     let os = "Unknown";
@@ -136,10 +144,15 @@ export const UserProvider = ({ children }) => {
     else if (/Macintosh|Mac OS/.test(ua)) os = "Mac OS";
     else if (/Linux/.test(ua)) os = "Linux";
 
-    return { browser, os, userAgent: ua.slice(0, 150) };
+    return {
+      deviceId: getDeviceId(),
+      browser,
+      os,
+      userAgent: ua.slice(0, 150),
+    };
   };
 
-  // Fetch real location from ipapi.co (free, no key needed, ~100ms)
+  // Fetch real location from ipapi.co
   const getLocationInfo = async () => {
     try {
       const res = await fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(5000) });
@@ -152,7 +165,6 @@ export const UserProvider = ({ children }) => {
         ip: data.ip || "",
       };
     } catch {
-      // Fallback: no location — backend will use IP header
       return { city: "Unknown", state: "Unknown", country: "Unknown", ip: "" };
     }
   };
@@ -160,7 +172,6 @@ export const UserProvider = ({ children }) => {
   // Central backend login call — guarded against concurrent calls
   const callBackendLogin = async (firebaseUser) => {
     if (loginInFlight.current) return;
-    // If OTP modal is already open, do not fire another login request
     if (otpPending.current) return;
 
     loginInFlight.current = true;
@@ -170,7 +181,7 @@ export const UserProvider = ({ children }) => {
 
       const payload = {
         email: firebaseUser.email,
-        name: firebaseUser.displayName,
+        name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
         image: firebaseUser.photoURL || "https://github.com/shadcn.png",
         device,
         location,
@@ -185,6 +196,36 @@ export const UserProvider = ({ children }) => {
     }
   };
 
+  const handleEmailSignUp = async (email, password, displayName) => {
+    redirectHandled.current = true;
+    otpPending.current = false;
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      if (displayName && userCredential.user) {
+        await updateProfile(userCredential.user, { displayName });
+      }
+      const updatedUser = {
+        ...userCredential.user,
+        displayName: displayName || userCredential.user.email?.split("@")[0] || "User",
+      };
+      await callBackendLogin(updatedUser);
+    } catch (error) {
+      console.error("Email sign-up error:", error);
+      throw error;
+    }
+  };
+
+  const handleEmailSignIn = async (email, password) => {
+    redirectHandled.current = true;
+    otpPending.current = false;
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      await callBackendLogin(userCredential.user);
+    } catch (error) {
+      console.error("Email sign-in error:", error);
+      throw error;
+    }
+  };
 
   const verifyOtpCode = async (otpCode) => {
     try {
@@ -224,7 +265,6 @@ export const UserProvider = ({ children }) => {
     signOut(auth).catch(() => {});
   };
 
-  // Detect if on a mobile device (popups are blocked on mobile)
   const isMobileDevice = () => {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
       navigator.userAgent
@@ -236,16 +276,10 @@ export const UserProvider = ({ children }) => {
       redirectHandled.current = false;
       otpPending.current = false;
       if (isMobileDevice()) {
-        // Mobile: use redirect (popups are blocked)
-        // Mark as redirect-initiated so onAuthStateChanged doesn't double-fire
-        redirectHandled.current = false; // will be set after redirect returns
         await signInWithRedirect(auth, provider);
-        return; // page navigates away
+        return;
       }
-
-      // Desktop: use popup
       const result = await signInWithPopup(auth, provider);
-      // Popup success — mark redirect as handled so onAuthStateChanged skips the call
       redirectHandled.current = true;
       await callBackendLogin(result.user);
     } catch (error) {
@@ -260,7 +294,6 @@ export const UserProvider = ({ children }) => {
         error?.code === "auth/popup-blocked" ||
         error?.code === "auth/operation-not-supported-in-this-environment"
       ) {
-        // Popup blocked even on desktop — fall back to redirect
         console.warn("Popup blocked by browser. Falling back to redirect...");
         toast.info("Popup blocked. Redirecting to Google Sign-In...");
         try {
@@ -329,9 +362,6 @@ export const UserProvider = ({ children }) => {
     const activeTheme = (isManualOverride && savedTheme) ? savedTheme : getClientIstTheme();
     applyThemeToDom(activeTheme);
 
-    // Handle redirect result first — this runs when the user returns after
-    // signInWithRedirect. If a redirect result exists, call the backend and
-    // mark redirectHandled so onAuthStateChanged below skips the duplicate call.
     getRedirectResult(auth)
       .then(async (result) => {
         if (result?.user) {
@@ -345,9 +375,6 @@ export const UserProvider = ({ children }) => {
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Skip if:
-        // 1. The redirect flow already handled login on this page load, OR
-        // 2. The OTP modal is currently open (user is mid-verification)
         if (redirectHandled.current) return;
         if (otpPending.current) return;
 
@@ -367,6 +394,8 @@ export const UserProvider = ({ children }) => {
         login,
         logout,
         handlegooglesignin,
+        handleEmailSignUp,
+        handleEmailSignIn,
         updateTheme,
         resetTheme,
       }}

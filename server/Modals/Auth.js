@@ -37,6 +37,18 @@ const userschema = mongoose.Schema(
       country: { type: String, default: null },
       ip: { type: String, default: null },
     },
+    trustedDevices: [
+      {
+        deviceId: { type: String, required: true },
+        browser: { type: String, default: "" },
+        os: { type: String, default: "" },
+        city: { type: String, default: "" },
+        state: { type: String, default: "" },
+        country: { type: String, default: "" },
+        ip: { type: String, default: "" },
+        lastLoginAt: { type: Date, default: Date.now },
+      },
+    ],
     otp: {
       code: { type: String, default: null },
       expiresAt: { type: Date, default: null },

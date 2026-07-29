@@ -124,6 +124,50 @@ const sendEmailViaBrevo = async ({ toEmail, fromName, subject, html }) => {
   }
 };
 
+// ── Dual-Transport Email Sender (Brevo REST API with Gmail SMTP Fallback) ──
+const sendEmail = async ({ toEmail, fromName, subject, html }) => {
+  let brevoError = null;
+
+  // 1. Try Brevo REST API first (works on Render free tier if configured)
+  if (process.env.BREVO_API_KEY) {
+    try {
+      await sendEmailViaBrevo({ toEmail, fromName, subject, html });
+      return;
+    } catch (err) {
+      brevoError = err;
+      console.warn(`[BREVO FALLBACK] Brevo failed (${err.message}). Trying Nodemailer Gmail SMTP fallback...`);
+    }
+  }
+
+  // 2. Fallback to Nodemailer Gmail SMTP
+  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      });
+
+      await transporter.sendMail({
+        from: `"${fromName}" <${process.env.EMAIL_USER}>`,
+        to: toEmail,
+        subject,
+        html,
+      });
+      console.log(`[GMAIL SMTP SUCCESS] Email sent to ${toEmail}`);
+      return;
+    } catch (smtpErr) {
+      console.error(`[GMAIL SMTP ERROR] ❌ ${smtpErr.message}`);
+      throw new Error(`Email sending failed via Brevo (${brevoError?.message || 'N/A'}) and Gmail SMTP (${smtpErr.message})`);
+    }
+  }
+
+  if (brevoError) throw brevoError;
+  throw new Error("No email transport configured (BREVO_API_KEY or EMAIL_USER/EMAIL_PASS)");
+};
+
 
 const sendInvoiceEmail = async ({
   toEmail,
@@ -168,7 +212,7 @@ const sendInvoiceEmail = async ({
     </div>
   `;
 
-  await sendEmailViaBrevo({
+  await sendEmail({
     toEmail,
     fromName: "YourTube",
     subject: `YourTube ${planInfo.label} Plan — Payment Confirmed`,
@@ -208,7 +252,7 @@ const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) =>
   console.log(`==================================================\n`);
 
   try {
-    await sendEmailViaBrevo({
+    await sendEmail({
       toEmail,
       fromName: "YourTube Security",
       subject: `YourTube Security Verification Code: ${otpCode}`,
@@ -243,9 +287,11 @@ export const calculateIstTimeBasedTheme = () => {
 };
 
 // Helper to parse Device info (Browser + OS)
+// Helper to parse Device info (Browser + OS + DeviceId)
 const parseDeviceInfo = (req) => {
   const ua = req.headers["user-agent"] || "";
   const bodyDevice = req.body.device || {};
+  const deviceId = bodyDevice.deviceId || req.headers["x-device-id"] || "";
 
   let rawBrowser = (bodyDevice.browser || "").toLowerCase();
   let browser = "Chrome";
@@ -300,6 +346,7 @@ const parseDeviceInfo = (req) => {
   }
 
   return {
+    deviceId,
     browser,
     os,
     userAgent: ua.slice(0, 150),
@@ -338,6 +385,21 @@ export const login = async (req, res) => {
 
     const existingUser = await users.findOne({ email });
     if (!existingUser) {
+      const initialTrustedDevices = currentDevice.deviceId
+        ? [
+            {
+              deviceId: currentDevice.deviceId,
+              browser: currentDevice.browser,
+              os: currentDevice.os,
+              city: currentLocation.city,
+              state: currentLocation.state,
+              country: currentLocation.country,
+              ip: currentLocation.ip,
+              lastLoginAt: new Date(),
+            },
+          ]
+        : [];
+
       const newUser = await users.create({
         email,
         name: name || "User",
@@ -346,6 +408,7 @@ export const login = async (req, res) => {
         themePreference: calculatedTheme,
         lastDevice: currentDevice,
         lastLocation: currentLocation,
+        trustedDevices: initialTrustedDevices,
       });
       return res.status(201).json({ result: newUser });
     }
@@ -353,7 +416,6 @@ export const login = async (req, res) => {
     let modified = false;
 
     // Automatically update theme on every login based on current IST login time
-    // (10:00 AM - 12:00 PM IST => light, all other times => dark)
     existingUser.theme = calculatedTheme;
     existingUser.themePreference = calculatedTheme;
     modified = true;
@@ -371,25 +433,6 @@ export const login = async (req, res) => {
     }
 
     // Security Verification: Device & Location Check
-    const hasDeviceRecord =
-      existingUser.lastDevice?.browser && existingUser.lastDevice?.os;
-    const hasLocationRecord = existingUser.lastLocation?.city;
-
-    // Treat old hardcoded "Mumbai" default as a missing/legacy location record
-    // so it gets replaced with the real location on next login.
-    const isLegacyLocation =
-      existingUser.lastLocation?.city === "Mumbai" &&
-      !existingUser.lastLocation?.ip;
-
-    if (!hasDeviceRecord || !hasLocationRecord || isLegacyLocation) {
-      // First time (or legacy) recording security info -> save & login immediately
-      existingUser.lastDevice = currentDevice;
-      existingUser.lastLocation = currentLocation;
-      await existingUser.save();
-      return res.status(200).json({ result: existingUser });
-    }
-
-    // Helper to check if browser belongs to Chromium family
     const isChromiumFamily = (b) =>
       ["chrome", "edge", "opera", "brave"].includes((b || "").toLowerCase());
 
@@ -401,41 +444,117 @@ export const login = async (req, res) => {
       return false;
     };
 
-    // Compare current vs last recorded device and location
-    const deviceMatches =
-      isSameBrowserOrChromiumDesktop(
-        existingUser.lastDevice?.browser,
-        currentDevice.browser
-      ) &&
-      (existingUser.lastDevice?.os || "").toLowerCase() ===
-      currentDevice.os.toLowerCase();
+    const isLocationMatch = (loc1, loc2) => {
+      const city1 = (loc1?.city || "").toLowerCase();
+      const city2 = (loc2?.city || "").toLowerCase();
+      const state1 = (loc1?.state || "").toLowerCase();
+      const state2 = (loc2?.state || "").toLowerCase();
 
-    const locationMatches = (() => {
-      const storedCity = (existingUser.lastLocation?.city || "").toLowerCase();
-      const currentCity = currentLocation.city.toLowerCase();
-      // If both have known cities, compare them
-      if (storedCity && storedCity !== "unknown" && currentCity !== "unknown") {
-        return storedCity === currentCity;
+      if (city1 && city1 !== "unknown" && city2 !== "unknown") {
+        return city1 === city2;
       }
-      // Fall back to IP comparison when city is unknown
-      const storedIp = existingUser.lastLocation?.ip || "";
-      const currentIp = currentLocation.ip || "";
-      if (storedIp && currentIp && storedIp !== "unknown" && currentIp !== "unknown") {
-        return storedIp === currentIp;
+      if (state1 && state1 !== "unknown" && state2 !== "unknown") {
+        return state1 === state2;
       }
-      // Can't compare — treat as match to avoid false OTP spam
-      return true;
-    })();
+      const ip1 = loc1?.ip || "";
+      const ip2 = loc2?.ip || "";
+      if (ip1 && ip2 && ip1 !== "unknown" && ip2 !== "unknown") {
+        return ip1 === ip2;
+      }
+      return true; // fallback to true if no location available
+    };
+
+    const trustedList = existingUser.trustedDevices || [];
+    const hasDeviceRecord =
+      trustedList.length > 0 ||
+      (existingUser.lastDevice?.browser && existingUser.lastDevice?.os);
+    const isLegacyLocation =
+      existingUser.lastLocation?.city === "Mumbai" &&
+      !existingUser.lastLocation?.ip;
+
+    if (!hasDeviceRecord || isLegacyLocation) {
+      // First time recording security info -> save device & login immediately
+      if (currentDevice.deviceId) {
+        existingUser.trustedDevices = [
+          {
+            deviceId: currentDevice.deviceId,
+            browser: currentDevice.browser,
+            os: currentDevice.os,
+            city: currentLocation.city,
+            state: currentLocation.state,
+            country: currentLocation.country,
+            ip: currentLocation.ip,
+            lastLoginAt: new Date(),
+          },
+        ];
+      }
+      existingUser.lastDevice = currentDevice;
+      existingUser.lastLocation = currentLocation;
+      await existingUser.save();
+      return res.status(200).json({ result: existingUser });
+    }
+
+    // Check trustedDevices array first by deviceId or matching browser/os
+    let matchingTrustedDeviceIndex = -1;
+    if (currentDevice.deviceId) {
+      matchingTrustedDeviceIndex = trustedList.findIndex(
+        (dev) => dev.deviceId === currentDevice.deviceId
+      );
+    }
+
+    let isDeviceRecognized = matchingTrustedDeviceIndex >= 0;
+    let isLocationFamiliar = false;
+
+    if (isDeviceRecognized) {
+      const matchedDev = trustedList[matchingTrustedDeviceIndex];
+      isLocationFamiliar = isLocationMatch(matchedDev, currentLocation);
+    } else {
+      // Fall back to legacy lastDevice check if deviceId matches browser/os
+      const legacyDeviceMatches =
+        isSameBrowserOrChromiumDesktop(
+          existingUser.lastDevice?.browser,
+          currentDevice.browser
+        ) &&
+        (existingUser.lastDevice?.os || "").toLowerCase() ===
+          currentDevice.os.toLowerCase();
+
+      if (legacyDeviceMatches) {
+        isDeviceRecognized = true;
+        isLocationFamiliar = isLocationMatch(
+          existingUser.lastLocation,
+          currentLocation
+        );
+      }
+    }
 
     console.log(`[LOGIN DEBUG] User: ${email}`);
-    console.log(`[LOGIN DEBUG] Stored device: ${existingUser.lastDevice?.browser} / ${existingUser.lastDevice?.os}`);
-    console.log(`[LOGIN DEBUG] Current device: ${currentDevice.browser} / ${currentDevice.os}`);
-    console.log(`[LOGIN DEBUG] Stored location: ${existingUser.lastLocation?.city}`);
-    console.log(`[LOGIN DEBUG] Current location: ${currentLocation.city}`);
-    console.log(`[LOGIN DEBUG] deviceMatches=${deviceMatches}, locationMatches=${locationMatches}`);
+    console.log(
+      `[LOGIN DEBUG] Current Device: ${currentDevice.browser} / ${currentDevice.os} (ID: ${currentDevice.deviceId})`
+    );
+    console.log(`[LOGIN DEBUG] Current Location: ${currentLocation.city}, ${currentLocation.state}`);
+    console.log(
+      `[LOGIN DEBUG] Recognized: ${isDeviceRecognized}, Familiar Location: ${isLocationFamiliar}`
+    );
 
-    if (deviceMatches && locationMatches) {
-      // Both match -> Normal Login (update lastDevice to current browser info)
+    if (isDeviceRecognized && isLocationFamiliar) {
+      // Both match -> Normal Login
+      if (matchingTrustedDeviceIndex >= 0) {
+        existingUser.trustedDevices[matchingTrustedDeviceIndex].lastLoginAt =
+          new Date();
+        existingUser.trustedDevices[matchingTrustedDeviceIndex].ip =
+          currentLocation.ip;
+      } else if (currentDevice.deviceId) {
+        existingUser.trustedDevices.push({
+          deviceId: currentDevice.deviceId,
+          browser: currentDevice.browser,
+          os: currentDevice.os,
+          city: currentLocation.city,
+          state: currentLocation.state,
+          country: currentLocation.country,
+          ip: currentLocation.ip,
+          lastLoginAt: new Date(),
+        });
+      }
       existingUser.lastDevice = currentDevice;
       existingUser.lastLocation = currentLocation;
       await existingUser.save();
@@ -452,8 +571,7 @@ export const login = async (req, res) => {
 
     console.log(`[SECURITY ALERT] OTP generated for ${email}: ${otpCode}`);
 
-    // Fire OTP email in the background — do NOT await so the HTTP response
-    // is sent immediately and the modal appears on the client right away.
+    // Fire OTP email in the background
     sendOtpEmail({
       toEmail: existingUser.email,
       userName: existingUser.name,
@@ -504,10 +622,32 @@ export const verifyOtp = async (req, res) => {
       return res.status(400).json({ message: "Invalid or expired OTP code" });
     }
 
-    // OTP is valid! Clear OTP and save new authorized device & location info
+    // OTP is valid! Clear OTP and add/update device in trustedDevices array
     user.otp = { code: null, expiresAt: null };
     if (device) user.lastDevice = device;
     if (location) user.lastLocation = location;
+
+    if (!user.trustedDevices) user.trustedDevices = [];
+    const deviceId = device?.deviceId || `dev_${Date.now()}`;
+    const devIndex = user.trustedDevices.findIndex((d) => d.deviceId === deviceId);
+
+    const trustedEntry = {
+      deviceId,
+      browser: device?.browser || "Unknown",
+      os: device?.os || "Unknown",
+      city: location?.city || "Unknown",
+      state: location?.state || "Unknown",
+      country: location?.country || "Unknown",
+      ip: location?.ip || "",
+      lastLoginAt: new Date(),
+    };
+
+    if (devIndex >= 0) {
+      user.trustedDevices[devIndex] = trustedEntry;
+    } else {
+      user.trustedDevices.push(trustedEntry);
+    }
+
     await user.save();
 
     return res.status(200).json({

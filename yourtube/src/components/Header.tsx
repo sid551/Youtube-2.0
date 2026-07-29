@@ -28,6 +28,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import Channeldialogue from "./channeldialogue";
 import VideoUploader from "./VideoUploader";
 import CameraRecorder from "./CameraRecorder";
+import AuthModal from "./AuthModal";
 import { useRouter } from "next/router";
 import { useUser } from "@/lib/AuthContext";
 import axiosInstance from "@/lib/axiosinstance";
@@ -61,6 +62,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
     useUser();
   const [searchQuery, setSearchQuery] = useState("");
   const [isChannelDialogOpen, setIsChannelDialogOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
 
   // Upload modal
@@ -521,7 +523,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
             <Button
               variant="outline"
               className="flex items-center gap-2 text-sm px-3.5 rounded-full border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/60 dark:hover:text-blue-300"
-              onClick={handlegooglesignin}
+              onClick={() => setIsAuthModalOpen(true)}
             >
               <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               <span className="hidden sm:inline font-medium text-blue-600 dark:text-blue-400">
@@ -535,6 +537,11 @@ const Header = ({ onMenuClick }: HeaderProps) => {
           isopen={isChannelDialogOpen}
           onclose={() => setIsChannelDialogOpen(false)}
           mode="create"
+        />
+
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
         />
       </header>
 
