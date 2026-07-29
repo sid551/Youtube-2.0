@@ -141,13 +141,21 @@ export default function WatchPartyVideoGrid({
 
   useEffect(() => {
     if (screenVideoRef.current) {
+      let targetStream: MediaStream | null = null;
       if (isScreenSharing && screenStream) {
-        screenVideoRef.current.srcObject = screenStream;
+        targetStream = screenStream;
       } else if (activeScreenSharer && activeScreenSharer.socketId !== socket.id) {
         const remotePeer = remotePeers.get(activeScreenSharer.socketId);
         if (remotePeer?.stream) {
-          screenVideoRef.current.srcObject = remotePeer.stream;
+          targetStream = remotePeer.stream;
         }
+      }
+
+      if (targetStream) {
+        screenVideoRef.current.srcObject = targetStream;
+        screenVideoRef.current.play().catch((e) => console.log("Screen video play error:", e));
+      } else {
+        screenVideoRef.current.srcObject = null;
       }
     }
   }, [isScreenSharing, screenStream, activeScreenSharer, remotePeers, socket.id]);
@@ -435,9 +443,10 @@ export default function WatchPartyVideoGrid({
     const cameraTrack = localStreamRef.current?.getVideoTracks()[0] || null;
 
     peerConnections.current.forEach((pc) => {
-      const sender = pc.getSenders().find((s) => s.track?.kind === "video");
-      if (sender && cameraTrack) {
-        sender.replaceTrack(cameraTrack);
+      const senders = pc.getSenders();
+      const videoSender = senders.find((s) => s.track?.kind === "video") || senders.find((s) => s.track === null);
+      if (videoSender && cameraTrack) {
+        videoSender.replaceTrack(cameraTrack);
       }
     });
 
@@ -466,12 +475,31 @@ export default function WatchPartyVideoGrid({
       });
 
       const screenTrack = displayStream.getVideoTracks()[0];
+      if (!screenTrack) {
+        toast.error("No video track found in screen capture.");
+        return;
+      }
+      screenTrack.enabled = true;
+
+      // Broadcast video state ON to all peers
+      setIsVideoOff(false);
+      socket.emit("toggle_media_state", {
+        roomId,
+        isMuted,
+        isVideoOff: false,
+      });
 
       // Replace camera track with screen share track on peer connections
       peerConnections.current.forEach((pc) => {
-        const sender = pc.getSenders().find((s) => s.track?.kind === "video");
-        if (sender) {
-          sender.replaceTrack(screenTrack);
+        const senders = pc.getSenders();
+        let videoSender = senders.find((s) => s.track?.kind === "video");
+        if (!videoSender) {
+          videoSender = senders.find((s) => s.track === null);
+        }
+        if (videoSender) {
+          videoSender.replaceTrack(screenTrack);
+        } else {
+          pc.addTrack(screenTrack, displayStream);
         }
       });
 
@@ -827,6 +855,7 @@ export default function WatchPartyVideoGrid({
             ref={screenVideoRef}
             autoPlay
             playsInline
+            muted={isScreenSharing}
             className="w-full h-full object-contain"
           />
           <div className="absolute top-3 left-3 bg-purple-950/90 backdrop-blur-md border border-purple-500/50 px-3 py-1.5 rounded-xl flex items-center space-x-2 text-xs font-bold text-purple-200">
