@@ -7,6 +7,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
+  sendEmailVerification,
 } from "firebase/auth";
 import { useState, useEffect, useRef, useContext, createContext } from "react";
 import { provider, auth } from "./firebase";
@@ -96,7 +97,7 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  const handleLoginResponse = (data) => {
+  const handleLoginResponse = async (data) => {
     if (data.requiresOtp) {
       otpPending.current = true;
       setOtpState({
@@ -105,7 +106,20 @@ export const UserProvider = ({ children }) => {
         device: data.device,
         location: data.location,
       });
-      toast.warning("Unusual login detected. A verification OTP has been sent to your email.");
+
+      if (auth.currentUser) {
+        try {
+          await sendEmailVerification(auth.currentUser);
+          toast.info(
+            "Unusual login detected. A verification link has been sent via Firebase Authentication."
+          );
+        } catch (err) {
+          console.error("Firebase sendEmailVerification error:", err);
+          toast.warning("Unusual login detected. Please verify your email.");
+        }
+      } else {
+        toast.warning("Unusual login detected. Security verification is required.");
+      }
       return false;
     }
     if (data.result) {
@@ -187,7 +201,7 @@ export const UserProvider = ({ children }) => {
         location,
       };
       const response = await axiosInstance.post("/user/login", payload);
-      handleLoginResponse(response.data);
+      await handleLoginResponse(response.data);
     } catch (error) {
       console.error("Backend login error:", error);
       logout();
@@ -227,11 +241,13 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  const verifyOtpCode = async (otpCode) => {
+  const verifyOtpCode = async () => {
     try {
+      if (auth.currentUser) {
+        await auth.currentUser.reload();
+      }
       const res = await axiosInstance.post("/user/verify-otp", {
         email: otpState.email,
-        otp: otpCode,
         device: otpState.device,
         location: otpState.location,
       });
@@ -247,9 +263,18 @@ export const UserProvider = ({ children }) => {
         });
       }
     } catch (err) {
-      const msg = err?.response?.data?.message || "Invalid OTP code";
+      const msg = err?.response?.data?.message || "Verification failed";
       toast.error(msg);
       throw err;
+    }
+  };
+
+  const resendFirebaseVerification = async () => {
+    if (auth.currentUser) {
+      await sendEmailVerification(auth.currentUser);
+      toast.success("Verification email link re-sent via Firebase!");
+    } else {
+      toast.error("No active session found to resend verification.");
     }
   };
 
@@ -396,6 +421,7 @@ export const UserProvider = ({ children }) => {
         handlegooglesignin,
         handleEmailSignUp,
         handleEmailSignIn,
+        resendFirebaseVerification,
         updateTheme,
         resetTheme,
       }}
@@ -405,6 +431,7 @@ export const UserProvider = ({ children }) => {
         isOpen={otpState.isOpen}
         email={otpState.email}
         onVerify={verifyOtpCode}
+        onResend={resendFirebaseVerification}
         onClose={closeOtpModal}
       />
     </UserContext.Provider>

@@ -59,87 +59,8 @@ const getRazorpay = () => {
   return _razorpay;
 };
 
-// ── Brevo REST API email sender ────────────────────────────────────────────────
-// Uses Brevo's transactional email REST API over HTTPS (port 443).
-// Render free tier blocks outbound SMTP (ports 25, 465, 587) but NEVER blocks 443.
-//
-// Required env vars on Render:
-//   BREVO_API_KEY    — from Brevo → SMTP & API → API keys tab
-//   BREVO_SENDER_EMAIL — a verified sender address in your Brevo account
-//
-// ⚠️  Do NOT use @gmail.com as sender — Gmail's DMARC causes delivery errors.
-//     Use the Brevo-verified address shown as working in your Brevo → Transactional → Logs.
-const sendEmailViaBrevo = async ({ toEmail, fromName, subject, html }) => {
-  const apiKey = process.env.BREVO_API_KEY;
-  if (!apiKey) {
-    console.error("[BREVO] ❌ BREVO_API_KEY is not set!");
-    throw new Error("BREVO_API_KEY not configured");
-  }
-
-  const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER;
-  if (!senderEmail) {
-    console.error("[BREVO] ❌ No sender email configured (BREVO_SENDER_EMAIL or EMAIL_USER)");
-    throw new Error("No sender email configured");
-  }
-
-  console.log(`[BREVO] Sending to: ${toEmail} | from: ${fromName} <${senderEmail}>`);
-
-  // 15-second timeout — makes failures visible immediately instead of hanging
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
-
-  try {
-    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        sender: { name: fromName, email: senderEmail },
-        to: [{ email: toEmail }],
-        subject,
-        htmlContent: html,
-      }),
-    });
-
-    const responseText = await res.text().catch(() => "");
-    if (!res.ok) {
-      console.error(`[BREVO ERROR] HTTP ${res.status} — ${responseText}`);
-      let errMsg = `Brevo error: HTTP ${res.status}`;
-      try { errMsg = JSON.parse(responseText).message || errMsg; } catch (_) {}
-      throw new Error(errMsg);
-    }
-
-    console.log(`[BREVO SUCCESS] ${responseText}`);
-  } catch (err) {
-    if (err.name === "AbortError") {
-      console.error("[BREVO ERROR] Request timed out after 15s — check BREVO_API_KEY and network");
-      throw new Error("Brevo request timed out");
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
-  }
-};
-
-// ── Dual-Transport Email Sender (Brevo REST API with Gmail SMTP Fallback) ──
+// ── Standard SMTP Email Sender (for transactional invoices) ──
 const sendEmail = async ({ toEmail, fromName, subject, html }) => {
-  let brevoError = null;
-
-  // 1. Try Brevo REST API first (works on Render free tier if configured)
-  if (process.env.BREVO_API_KEY) {
-    try {
-      await sendEmailViaBrevo({ toEmail, fromName, subject, html });
-      return;
-    } catch (err) {
-      brevoError = err;
-      console.warn(`[BREVO FALLBACK] Brevo failed (${err.message}). Trying Nodemailer Gmail SMTP fallback...`);
-    }
-  }
-
-  // 2. Fallback to Nodemailer Gmail SMTP
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
     try {
       const transporter = nodemailer.createTransport({
@@ -160,108 +81,10 @@ const sendEmail = async ({ toEmail, fromName, subject, html }) => {
       return;
     } catch (smtpErr) {
       console.error(`[GMAIL SMTP ERROR] ❌ ${smtpErr.message}`);
-      throw new Error(`Email sending failed via Brevo (${brevoError?.message || 'N/A'}) and Gmail SMTP (${smtpErr.message})`);
+      throw new Error(`Email sending failed via Gmail SMTP (${smtpErr.message})`);
     }
   }
-
-  if (brevoError) throw brevoError;
-  throw new Error("No email transport configured (BREVO_API_KEY or EMAIL_USER/EMAIL_PASS)");
-};
-
-
-const sendInvoiceEmail = async ({
-  toEmail,
-  userName,
-  plan,
-  orderId,
-  paymentId,
-  amount,
-}) => {
-  const planInfo = PLAN_FEATURES[plan];
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-  const html = `
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
-      <div style="background:#dc2626;padding:24px;text-align:center">
-        <h1 style="color:#fff;margin:0;font-size:24px">YourTube</h1>
-        <p style="color:#fecaca;margin:4px 0 0">Subscription Confirmation</p>
-      </div>
-      <div style="padding:32px">
-        <p style="font-size:16px;color:#111827">Hi <strong>${userName}</strong>,</p>
-        <p style="color:#374151">Your subscription to the <strong>${planInfo.label} Plan</strong> is now active.</p>
-        <div style="background:#f9fafb;border-radius:8px;padding:20px;margin:24px 0">
-          <h3 style="margin:0 0 16px;color:#111827">Invoice Details</h3>
-          <table style="width:100%;border-collapse:collapse;font-size:14px">
-            <tr><td style="padding:6px 0;color:#6b7280">Plan</td><td style="padding:6px 0;font-weight:600;color:#111827">${planInfo.label}</td></tr>
-            <tr><td style="padding:6px 0;color:#6b7280">Amount Paid</td><td style="padding:6px 0;font-weight:600;color:#16a34a">&#8377;${amount}</td></tr>
-            <tr><td style="padding:6px 0;color:#6b7280">Order ID</td><td style="padding:6px 0;font-weight:600;color:#374151">${orderId}</td></tr>
-            <tr><td style="padding:6px 0;color:#6b7280">Payment ID</td><td style="padding:6px 0;font-weight:600;color:#374151">${paymentId}</td></tr>
-            <tr><td style="padding:6px 0;color:#6b7280">Valid From</td><td style="padding:6px 0;color:#374151">${now.toDateString()}</td></tr>
-            <tr><td style="padding:6px 0;color:#6b7280">Valid Until</td><td style="padding:6px 0;color:#374151">${expiresAt.toDateString()}</td></tr>
-          </table>
-        </div>
-        <h3 style="color:#111827">Plan Benefits</h3>
-        <ul style="color:#374151;font-size:14px;line-height:1.8">
-          <li>Downloads per day: <strong>${planInfo.downloads ?? "Unlimited"}</strong></li>
-          <li>Video quality: <strong>${planInfo.quality}</strong></li>
-          <li>Ad-free: <strong>${planInfo.ads ? "No" : "Yes"}</strong></li>
-        </ul>
-        <p style="color:#6b7280;font-size:13px;margin-top:32px">This is an auto-generated invoice. For support, contact us.</p>
-      </div>
-    </div>
-  `;
-
-  await sendEmail({
-    toEmail,
-    fromName: "YourTube",
-    subject: `YourTube ${planInfo.label} Plan — Payment Confirmed`,
-    html,
-  });
-  console.log(`[INVOICE SENT] to ${toEmail}`);
-};
-
-const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) => {
-  const html = `
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
-      <div style="background:#dc2626;padding:24px;text-align:center">
-        <h1 style="color:#fff;margin:0;font-size:24px">YourTube</h1>
-        <p style="color:#fecaca;margin:4px 0 0">Security Verification Code</p>
-      </div>
-      <div style="padding:32px">
-        <p style="font-size:16px;color:#111827">Hi <strong>${userName || "User"}</strong>,</p>
-        <p style="color:#374151">We detected a login attempt from a new location or device:</p>
-        <ul style="color:#374151;line-height:1.6">
-          <li><strong>Device:</strong> ${device?.browser || "Unknown"} on ${device?.os || "Unknown"}</li>
-          <li><strong>Location:</strong> ${location?.city || "Unknown"}, ${location?.country || "Unknown"}</li>
-        </ul>
-        <p style="color:#374151">Use the following 6-digit verification code to complete your login:</p>
-        <div style="background:#f3f4f6;padding:16px;text-align:center;border-radius:8px;margin:20px 0;letter-spacing:6px;font-size:32px;font-weight:bold;color:#dc2626">
-          ${otpCode}
-        </div>
-        <p style="color:#6b7280;font-size:14px">This code is valid for 10 minutes. If you did not initiate this login attempt, please secure your account immediately.</p>
-      </div>
-      <div style="background:#f9fafb;padding:16px;text-align:center;color:#9ca3af;font-size:12px">
-        &copy; ${new Date().getFullYear()} YourTube. All rights reserved.
-      </div>
-    </div>
-  `;
-
-  console.log(`\n==================================================`);
-  console.log(`[SECURITY OTP GENERATED] User: ${toEmail} | Code: ${otpCode}`);
-  console.log(`==================================================\n`);
-
-  try {
-    await sendEmail({
-      toEmail,
-      fromName: "YourTube Security",
-      subject: `YourTube Security Verification Code: ${otpCode}`,
-      html,
-    });
-    console.log(`[OTP SENT] to ${toEmail}`);
-  } catch (err) {
-    console.error(`[OTP EMAIL FAILED] ❌ ${err.message}`);
-  }
+  console.log(`[EMAIL NOTICE] No SMTP configured. Skipping email to ${toEmail}`);
 };
 
 // Helper to calculate time-based theme in Indian Standard Time (IST, UTC+5:30)
@@ -571,23 +394,20 @@ export const login = async (req, res) => {
 
     console.log(`[SECURITY ALERT] OTP generated for ${email}: ${otpCode}`);
 
-    // Fire OTP email in the background
-    sendOtpEmail({
-      toEmail: existingUser.email,
-      userName: existingUser.name,
-      otpCode,
-      device: currentDevice,
-      location: currentLocation,
-    }).catch((emailErr) => {
-      console.error("[OTP Email non-fatal error]:", emailErr);
-    });
+    // Mismatch detected -> Step-Up Security Trigger via Firebase Auth
+    existingUser.otp = {
+      requestedAt: new Date(),
+    };
+    await existingUser.save();
+
+    console.log(`[SECURITY ALERT] Step-Up verification requested for ${email} via Firebase Auth`);
 
     return res.status(200).json({
       requiresOtp: true,
       email: existingUser.email,
       device: currentDevice,
       location: currentLocation,
-      message: `Unusual login detected (${currentDevice.browser} on ${currentDevice.os} from ${currentLocation.city}). A 6-digit OTP code has been sent to your email.`,
+      message: `Unusual login detected (${currentDevice.browser} on ${currentDevice.os} from ${currentLocation.city}). Verification requested via Firebase Authentication.`,
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -595,12 +415,12 @@ export const login = async (req, res) => {
   }
 };
 
-// POST /user/verify-otp — verify OTP and complete login
+// POST /user/verify-otp — confirm verification and mark current device as trusted
 export const verifyOtp = async (req, res) => {
-  const { email, otp, device, location } = req.body;
+  const { email, device, location } = req.body;
 
-  if (!email || otp === undefined || otp === null) {
-    return res.status(400).json({ message: "Email and OTP code are required" });
+  if (!email) {
+    return res.status(400).json({ message: "Email is required" });
   }
 
   try {
@@ -609,21 +429,8 @@ export const verifyOtp = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const cleanInputOtp = String(otp).trim();
-    const cleanStoredOtp =
-      user.otp && user.otp.code ? String(user.otp.code).trim() : null;
-
-    if (
-      !cleanStoredOtp ||
-      cleanStoredOtp !== cleanInputOtp ||
-      !user.otp?.expiresAt ||
-      new Date() > new Date(user.otp.expiresAt)
-    ) {
-      return res.status(400).json({ message: "Invalid or expired OTP code" });
-    }
-
-    // OTP is valid! Clear OTP and add/update device in trustedDevices array
-    user.otp = { code: null, expiresAt: null };
+    // Clear verification request and register current device into trustedDevices array
+    user.otp = { code: null, expiresAt: null, requestedAt: null };
     if (device) user.lastDevice = device;
     if (location) user.lastLocation = location;
 
@@ -660,7 +467,7 @@ export const verifyOtp = async (req, res) => {
   }
 };
 
-// POST /user/resend-otp — resend OTP to the given email
+// POST /user/resend-otp — trigger resend response
 export const resendOtp = async (req, res) => {
   const { email } = req.body;
 
@@ -674,28 +481,7 @@ export const resendOtp = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Generate a fresh 6-digit OTP
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    user.otp = {
-      code: otpCode,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 mins
-    };
-    await user.save();
-
-    console.log(`[RESEND OTP] New OTP generated for ${email}: ${otpCode}`);
-
-    // Fire email non-blocking so response is sent immediately
-    sendOtpEmail({
-      toEmail: user.email,
-      userName: user.name,
-      otpCode,
-      device: user.lastDevice,
-      location: user.lastLocation,
-    }).catch((emailErr) => {
-      console.error("[Resend OTP email error]:", emailErr);
-    });
-
-    return res.status(200).json({ message: "A new OTP has been sent to your email." });
+    return res.status(200).json({ message: "Verification link sent via Firebase." });
   } catch (error) {
     console.error("resendOtp error:", error);
     return res.status(500).json({ message: "Something went wrong", error: error.message });
