@@ -276,10 +276,6 @@ export const UserProvider = ({ children }) => {
     try {
       redirectHandled.current = false;
       otpPending.current = false;
-      if (isMobileDevice()) {
-        await signInWithRedirect(auth, provider);
-        return;
-      }
       const result = await signInWithPopup(auth, provider);
       redirectHandled.current = true;
       await callBackendLogin(result.user);

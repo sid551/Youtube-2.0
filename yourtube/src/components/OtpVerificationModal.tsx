@@ -65,13 +65,13 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md bg-white text-gray-900 border border-gray-200 dark:bg-zinc-950 dark:text-gray-100 dark:border-zinc-800 p-6 rounded-2xl">
+      <DialogContent className="w-[92vw] sm:max-w-md max-h-[90vh] overflow-y-auto bg-white text-gray-900 border border-gray-200 dark:bg-zinc-950 dark:text-gray-100 dark:border-zinc-800 p-4 sm:p-6 rounded-2xl z-[9999]">
         <DialogHeader className="text-center flex flex-col items-center">
           <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-2">
             <ShieldAlert className="w-6 h-6 text-amber-600 dark:text-amber-400" />
           </div>
-          <DialogTitle className="text-xl font-bold">Unusual Login Detected</DialogTitle>
-          <DialogDescription className="text-sm text-gray-500 dark:text-gray-400 text-center mt-1">
+          <DialogTitle className="text-lg sm:text-xl font-bold">Unusual Login Detected</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 text-center mt-1">
             We noticed a login attempt from a new device or location. A 6-digit verification code has been sent to{" "}
             <span className="font-semibold text-gray-800 dark:text-gray-200">{email}</span>.
           </DialogDescription>
@@ -86,6 +86,8 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
               <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 maxLength={6}
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
