@@ -1,77 +1,93 @@
-# 📺 YourTube 2.0 — Next-Generation Video Streaming & Watch Party Platform
+# 📺 YourTube 2.0 — Next-Generation Video Streaming, Watch Party & Security Platform
 
 [![Next.js](https://img.shields.io/badge/Next.js-16.2.11-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19.0.0-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0-38BDF8?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
 [![Firebase](https://img.shields.io/badge/Firebase-Auth-FFCA28?style=for-the-badge&logo=firebase)](https://firebase.google.com/)
+[![Brevo](https://img.shields.io/badge/Brevo-REST_API-00B289?style=for-the-badge&logo=sendinblue)](https://www.brevo.com/)
+[![MailerSend](https://img.shields.io/badge/MailerSend-REST_API-111827?style=for-the-badge)](https://www.mailersend.com/)
 [![Socket.io](https://img.shields.io/badge/Socket.io-4.8-010101?style=for-the-badge&logo=socket.io)](https://socket.io/)
 [![Razorpay](https://img.shields.io/badge/Razorpay-Integration-02042B?style=for-the-badge&logo=razorpay)](https://razorpay.com/)
 
-**YourTube 2.0** is a modern, full-featured video streaming web application modeled after YouTube. Built with Next.js, React 19, TypeScript, and Tailwind CSS v4, it features real-time WebSocket synchronized Watch Parties, in-browser WebRTC webcam video recording, Razorpay-powered subscription plans, multi-factor security verification, voice search, and an automated IST time-based theme engine.
+**YourTube 2.0** is a full-featured video streaming and real-time Watch Party web platform modeled after YouTube. Built with Next.js, React 19, TypeScript, Express, Node.js, and MongoDB, it features real-time WebSocket synchronized Watch Parties, WebRTC face-to-face video calling & screen sharing, multi-provider REST API transactional email services (Brevo & MailerSend), Razorpay-powered subscription tiers, multi-factor step-up security verification, and an automated IST time-based theme engine.
 
 ---
 
 ## 🌟 Key Features
 
-### 🔐 1. Authentication & Security Engine
-* **Google OAuth Sign-In**: Seamless authentication powered by Firebase Auth with desktop popups and mobile-optimized redirect fallbacks.
-* **Device & Geolocation Tracking**: Automatically captures IP addresses, OS, Browser metadata, and location (`ipapi.co`) upon sign-in.
-* **Multi-Factor OTP Email Verification**: Triggers a 6-digit email OTP modal whenever an unrecognized device or unusual location is detected.
-* **Smart Automated Theme Engine**:
+### 🔐 1. Authentication & Step-Up Security (MVP)
+* **Firebase Authentication**: Supports Google OAuth Sign-In and Email/Password registration/login.
+* **Device & Location Fingerprinting**: Tracks `deviceId` (UUID stored in browser storage), OS, Browser metadata, and IP geolocation (`ipapi.co`).
+* **Step-Up Verification (Unusual Login)**:
+  * Automatically compares sign-in attempts against `trustedDevices` array stored in MongoDB.
+  * If logging in from an unrecognized device or unfamiliar location (city/state), the backend generates a **6-digit numerical OTP code** valid for 10 minutes.
+  * Prompts an **OTP Verification Modal** on the frontend with a numeric keyboard layout (`inputMode="numeric"`).
+  * Upon successful verification, the device is saved into the user's `trustedDevices` list for future seamless logins.
+* **Smart Time-Based Theme Engine**:
   * Manual Light/Dark mode toggle synced with DOM root classes.
-  * **Automated IST Schedule**: Automatically switches to Light Mode between 10:00 AM – 12:00 PM IST and Dark Mode otherwise, with a single-click reset option.
+  * **Automated IST Schedule**: Automatically switches to Light Mode between 10:00 AM – 12:00 PM Indian Standard Time (IST) and Dark Mode otherwise, with a single-click reset option.
 
 ---
 
-### 🎬 2. Advanced Custom Video Player
-* **Multi-Resolution Playback**: Manual quality selector supporting 1080p, 720p, 480p, 360p, and 240p stream resolutions.
-* **Playback Controls**: Variable playback speed (0.25x – 2.0x), Picture-in-Picture (PiP), Theater Mode, Fullscreen, and custom progress scrubbers.
-* **Tier-Enforced Quality & Ads**: Stream resolution limits and ad displays dynamically enforced according to the user's active membership plan.
-* **Engagement Metrics**: Automatic view count increments, interactive Likes/Dislikes, and Watch Later saving.
+### 📧 2. Transactional Email Notification Service (MVP)
+* **Multi-Provider REST API Transport (`emailService.js`)**:
+  * Operates over **HTTPS (Port 443)** to guarantee reliable delivery on cloud hosting environments (such as Render) where outbound SMTP ports are blocked.
+  * **Priority Routing**: `Brevo REST API` (Primary, 300 free emails/day) $\rightarrow$ `MailerSend REST API` $\rightarrow$ `Resend REST API` $\rightarrow$ `Gmail SMTP`.
+* **Subscription Purchase Confirmation**:
+  * Automatically dispatches HTML invoice receipts after successful Razorpay payment verification.
+  * Includes User Name, Plan Name (Bronze, Silver, Gold), Amount Paid, Transaction ID (`paymentId`), Order ID, Purchase Date, and Expiry Date.
+* **Security OTP Emails**:
+  * Delivers 6-digit numerical OTP security codes instantly to the user's inbox upon step-up login verification triggers.
+* **Non-Blocking Architecture**:
+  * Email delivery errors are logged without rolling back subscription updates or blocking user sign-in.
 
 ---
 
-### 🍿 3. Real-Time Synchronized Watch Parties
-* **WebSocket Synchronization**: Powered by `socket.io-client` for real-time play, pause, and seek synchronization across all room participants.
-* **Host Control Mode**: Host privileges with master playback locks and room state management.
-* **Live Webcam Video Grid**: Overlay grid displaying participants' webcam video feeds alongside the main video stream.
-* **Interactive Room Sidebar**: Participant roster, real-time live chat room, and 1-click room invite link sharing.
+### 🍿 3. Real-Time Watch Parties & WebRTC Screen Sharing
+* **WebSocket Playback Synchronization**: Powered by `socket.io-client` for real-time play, pause, and seek synchronization across all room participants.
+* **WebRTC Face-to-Face Video Grid**: Multi-user peer-to-peer webcam grid with mute/unmute and camera toggles.
+* **WebRTC Screen Sharing**: In-browser screen sharing with automatic video track replacement across all connected peers.
+* **Instant Invite Link Sharing**:
+  * Sticky top navbar header button and quick-action bar for 1-click invite link copying.
+  * Integrated **Web Share API** (`navigator.share`) for native sharing on mobile devices (WhatsApp, Telegram, Messages).
+* **Host Control & Recording**: Master playback lock for hosts and in-browser WebRTC session recording.
 
 ---
 
-### 🎥 4. Content Creation & Recording Suite
-* **Webcam Recorder (`CameraRecorder`)**: In-browser WebRTC & MediaRecorder camera tool allowing users to record video clips directly from their webcam, preview recordings, add titles, and upload to their channel without third-party software.
-* **Video Uploader (`VideoUploader`)**: Drag-and-drop or select MP4/WebM video files with custom title, description, category tag, thumbnail image, and real-time upload progress percentage bar.
+### 🎬 4. Custom Video Player & Playback Control
+* **Multi-Resolution Playback**: Manual resolution selector supporting 1080p, 720p, 480p, 360p, and 240p stream qualities.
+* **Playback Features**: Playback speed control (0.25x – 2.0x), Picture-in-Picture (PiP), Theater Mode, Fullscreen, and custom progress scrubbers.
+* **Tier-Enforced Access**: Stream resolution caps and ad visibility dynamically enforced based on active membership tier.
 
 ---
 
 ### 💳 5. Subscription Plans & Razorpay Payments
 * **4-Tiered Membership Model**:
-  | Plan | Price | Daily Downloads | Max Resolution | Ads | Features |
+
+  | Plan | Price | Daily Downloads | Max Quality | Ads | Features |
   | :--- | :--- | :--- | :--- | :--- | :--- |
-  | **Free** | ₹0 / forever | 1 / day | SD (480p) | Yes | Basic access |
-  | **Bronze** | ₹49 / month | 5 / day | HD (720p) | Yes | Watch history, Watch later |
+  | **Free** | ₹0 / forever | 1 / day | SD (480p) | Yes | Basic streaming |
+  | **Bronze** | ₹49 / month | 5 / day | HD (720p) | Yes | History, Watch later |
   | **Silver** | ₹99 / month | 15 / day | Full HD (1080p) | No | Ad-free, Background play, Offline downloads |
   | **Gold** | ₹199 / month | Unlimited | 4K Ultra HD | No | All features, Early access, Priority support |
-* **Razorpay Checkout Integration**: Integrated online payments supporting UPI, Cards, Net Banking, and Wallets using official Razorpay JS SDK.
-* **Dynamic User Badges**: Visual membership badges (Bronze, Silver, Gold) rendered next to user profiles and channel headers.
+
+* **Razorpay Checkout Integration**: Supports UPI, Credit/Debit Cards, Net Banking, and Wallets using Razorpay Web SDK.
+* **Dynamic Badges**: Visual membership badges (Bronze, Silver, Gold) rendered across user profiles and channel headers.
 
 ---
 
-### 💬 6. Channels & Social Interactions
-* **Channel Customization**: Channel creation with custom avatar, channel header, subscriber counter, subscribe/unsubscribe buttons, and tabbed navigation (Home, Videos, About).
-* **Nested Commenting System**: Multi-level comment replies, comment like/dislike counts, author avatar display, and owner comment deletion.
-* **Voice Search**: Web Speech API (`SpeechRecognition`) integration enabling voice-to-text queries directly from the header search bar.
-* **Notification Center**: Real-time notification polling for channel updates and upload alerts with unread badge counters.
+### 🎥 6. Webcam Recorder & Video Upload Suite
+* **Webcam Recorder (`CameraRecorder`)**: Record video clips directly from the browser using webcam & microphone, preview, and publish to channels.
+* **Video Uploader (`VideoUploader`)**: Drag-and-drop file upload with custom title, description, category tag, thumbnail selection, and real-time upload progress bar.
 
 ---
 
-### 📚 7. Personal Library & Management
-* **Watch History**: Logs recently watched videos with timestamped history management and clear history options.
-* **Liked Videos**: Curated playlist of user-liked videos.
-* **Watch Later**: Saved video queue for later viewing.
-* **Offline Downloads Manager**: Dedicated downloads hub tracking offline videos and enforcing tier-based daily download limits.
+### 💬 7. Social Interactions & Library
+* **Channel Customization**: Channel creation with custom avatar, channel header, subscriber count, and subscribe/unsubscribe actions.
+* **Nested Commenting**: Multi-level comment replies, comment likes/dislikes, and author deletion options.
+* **Voice Search**: Web Speech API (`SpeechRecognition`) integration for voice-to-text queries in the header search bar.
+* **Personal Library**: Watch History, Liked Videos playlist, Watch Later queue, and Tier-Enforced Offline Downloads Manager.
 
 ---
 
@@ -79,70 +95,49 @@
 
 | Category | Technology | Description |
 | :--- | :--- | :--- |
-| **Framework** | [Next.js 16 (Pages Router)](https://nextjs.org/) | Server-rendered React framework for production |
-| **UI Library** | [React 19](https://react.dev/) | Core UI rendering engine |
+| **Frontend Framework** | [Next.js 16 (Pages Router)](https://nextjs.org/) | Server-rendered React framework for production |
+| **UI Library** | [React 19](https://react.dev/) | Core UI component engine |
 | **Language** | [TypeScript 5](https://www.typescriptlang.org/) | Type-safe JavaScript application code |
-| **Styling** | [Tailwind CSS v4](https://tailwindcss.com/) | Modern utility-first CSS styling engine |
-| **Primitives** | [Radix UI](https://www.radix-ui.com/) | Accessible Dialog, Dropdown Menu, Progress, Avatar components |
-| **Icons & Toast** | [Lucide React](https://lucide.dev/) & [Sonner](https://sonner.emilkowal.ski/) | Clean UI iconography and toast notifications |
-| **Authentication** | [Firebase Auth](https://firebase.google.com/docs/auth) | Google OAuth & session state listener |
-| **WebSockets** | [Socket.io Client](https://socket.io/) | Real-time bidirectional Watch Party synchronization |
-| **Payments** | [Razorpay SDK](https://razorpay.com/docs/) | Payment gateway for subscription plan checkouts |
-| **Networking** | [Axios](https://axios-http.com/) | HTTP client with custom backend interceptors |
+| **Styling** | [Tailwind CSS v4](https://tailwindcss.com/) | Utility-first CSS framework |
+| **Authentication** | [Firebase Auth](https://firebase.google.com/docs/auth) | Google OAuth & Email/Password authentication |
+| **Email Services** | [Brevo REST API](https://www.brevo.com/) & [MailerSend REST API](https://www.mailersend.com/) | HTTPS REST API transactional email delivery |
+| **Backend Server** | [Express.js](https://expressjs.com/) & [Node.js](https://nodejs.org/) | RESTful API server & WebSockets |
+| **Database** | [MongoDB](https://www.mongodb.com/) & [Mongoose](https://mongoosejs.com/) | Document database for users, videos, and comments |
+| **Real-Time Communication** | [Socket.io](https://socket.io/) & [WebRTC](https://webrtc.org/) | Watch Party synchronization, video call grid, & screen sharing |
+| **Payment Gateway** | [Razorpay SDK](https://razorpay.com/) | Payment gateway for subscription tier purchases |
 
 ---
 
 ## 📁 Project Structure
 
 ```
-yourtube/
-├── public/                     # Static assets & public resources
-├── src/
-│   ├── components/             # Reusable UI components
-│   │   ├── ui/                 # Radix UI primitives (button, input, dialog, etc.)
-│   │   ├── CameraRecorder.tsx  # In-browser WebRTC webcam video recorder
-│   │   ├── ChannelHeader.tsx   # Channel banner & metadata header
-│   │   ├── Comments.tsx        # Multi-nested comment system
-│   │   ├── DownloadsContent.tsx# Tier-enforced downloads manager
-│   │   ├── Header.tsx          # Top navigation bar with search & voice search
-│   │   ├── HistoryContent.tsx  # Watch history list
-│   │   ├── LikedContent.tsx    # Liked videos list
-│   │   ├── OtpVerificationModal.tsx # 6-digit security OTP verification modal
-│   │   ├── PartySidebar.tsx    # Watch party live chat & participant panel
-│   │   ├── Sidebar.tsx         # Collapsible main navigation sidebar
-│   │   ├── VideoUploader.tsx   # File video upload modal
-│   │   ├── Videopplayer.tsx    # Custom HTML5 video player with quality options
-│   │   ├── WatchLaterContent.tsx # Saved videos queue
-│   │   ├── WatchPartyPlayer.tsx  # Socket-synchronized video player
-│   │   └── WatchPartyVideoGrid.tsx# Watch party participant webcam grid
-│   ├── lib/                    # Core utilities & context providers
-│   │   ├── AuthContext.js      # User authentication, OTP, & theme state
-│   │   ├── axiosinstance.js    # Centralized Axios HTTP client
-│   │   ├── firebase.js         # Firebase initialization configuration
-│   │   ├── plans.ts            # Subscription tier definitions & features
-│   │   ├── socket.ts           # Socket.io connection helper
-│   │   └── utils.ts            # Class merging & URL helpers
-│   ├── pages/                  # Next.js Pages router endpoints
-│   │   ├── _app.tsx            # Global application entry point & providers
-│   │   ├── _document.tsx       # HTML document template
-│   │   ├── index.tsx           # Home video feed page
-│   │   ├── channel/[id]/       # Dynamic channel profile page
-│   │   ├── downloads/          # Offline downloads page
-│   │   ├── explore/            # Content exploration page
-│   │   ├── history/            # User watch history page
-│   │   ├── liked/              # Liked videos playlist page
-│   │   ├── plans/              # Membership tier plans & Razorpay payment page
-│   │   ├── search/             # Video search results page
-│   │   ├── subscriptions/      # Subscribed channels feed page
-│   │   ├── watch/[id]/         # Main video watch page
-│   │   ├── watch-later/        # Watch later playlist page
-│   │   └── watch-party/[roomId].tsx # Real-time watch party room page
-│   └── styles/
-│       └── globals.css         # Global CSS stylesheet & Tailwind setup
-├── components.json             # Shadcn UI configuration
-├── next.config.ts              # Next.js environment & compiler setup
-├── package.json                # Project dependencies and npm scripts
-├── tsconfig.json               # TypeScript compiler config
+you_tube2.0/
+├── server/                     # Express & Node.js backend server
+│   ├── controllers/            # API endpoint logic (auth, video, payment, theme)
+│   ├── Modals/                 # Mongoose schemas (Auth.js, video.js, etc.)
+│   ├── routes/                 # Express route definitions
+│   ├── services/
+│   │   └── emailService.js     # MailerSend, Brevo, & Resend REST API email transport
+│   ├── sockets/                # Socket.io Watch Party real-time socket handlers
+│   ├── index.js                # Express server entry point
+│   └── .env                    # Server environment configuration
+├── yourtube/                   # Next.js frontend application
+│   ├── src/
+│   │   ├── components/         # UI components & modals
+│   │   │   ├── AuthModal.tsx   # Firebase Email/Password & Google Auth dialog
+│   │   │   ├── OtpVerificationModal.tsx # 6-digit security OTP verification modal
+│   │   │   ├── PartySidebar.tsx# Watch party chat & invite panel
+│   │   │   ├── WatchPartyPlayer.tsx # Synchronized player
+│   │   │   └── WatchPartyVideoGrid.tsx # WebRTC video call & screen share grid
+│   │   ├── lib/
+│   │   │   ├── AuthContext.js  # Central user auth, OTP, & theme state provider
+│   │   │   ├── axiosinstance.js# Axios HTTP client
+│   │   │   ├── firebase.js     # Firebase SDK initialization
+│   │   │   └── socket.ts       # Socket.io client setup
+│   │   └── pages/              # Next.js page routes
+│   │       ├── watch-party/[roomId].tsx # Real-time watch party page
+│   │       └── plans/          # Membership tiers & Razorpay checkout
+│   └── .env.local              # Frontend environment variables
 └── README.md                   # Project documentation
 ```
 
@@ -151,37 +146,53 @@ yourtube/
 ## 🚀 Getting Started
 
 ### Prerequisites
-
-Ensure you have the following installed on your machine:
 * **Node.js**: v18.0.0 or higher
 * **npm**, **yarn**, or **pnpm**
+* **MongoDB**: Local MongoDB instance or MongoDB Atlas cluster
 
 ---
 
-### Installation & Environment Setup
+### Installation & Local Setup
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your-username/yourtube.git
-   cd yourtube
+   git clone https://github.com/your-username/you_tube2.0.git
+   cd you_tube2.0
    ```
 
-2. **Install project dependencies**:
-   ```bash
-   npm install
+2. **Configure Backend Environment (`server/.env`)**:
+   Create a `.env` file in the `server` directory:
+
+   ```env
+   PORT = 5000
+   DB_URL = mongodb+srv://<username>:<password>@cluster.mongodb.net/yourtube
+   
+   # Razorpay Payment Gateway Credentials
+   RAZORPAY_KEY_ID = rzp_test_xxxxxxxxxxxxxx
+   RAZORPAY_KEY_SECRET = xxxxxxxxxxxxxxxxxxxxxxxx
+
+   # Brevo REST API Credentials (Recommended — 300 free emails/day)
+   BREVO_API_KEY = xkeysib-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   BREVO_SENDER_EMAIL = your_brevo_account_email@gmail.com
+   BREVO_SENDER_NAME = YourTube Platform
+
+   # MailerSend REST API Credentials (Optional)
+   MAILERSEND_API_KEY = mlsn.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   MAILERSEND_SENDER_EMAIL = no-reply@yourdomain.com
+   MAILERSEND_SENDER_NAME = YourTube Platform
    ```
 
-3. **Configure Environment Variables**:
-   Create a `.env.local` file in the root directory and configure the following variables:
+3. **Configure Frontend Environment (`yourtube/.env.local`)**:
+   Create a `.env.local` file in the `yourtube` directory:
 
    ```env
    # Backend API Server URL
    BACKEND_URL=http://localhost:5000
 
-   # Razorpay Payment Gateway Key (Public)
-   NEXT_PUBLIC_RAZORPAY_KEY_ID=your_razorpay_key_id
+   # Razorpay Public Key
+   NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_test_xxxxxxxxxxxxxx
 
-   # Firebase Configuration Keys
+   # Firebase Auth Keys
    NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
    NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
@@ -190,26 +201,35 @@ Ensure you have the following installed on your machine:
    NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
    ```
 
-4. **Run the development server**:
+4. **Install Dependencies & Start Server**:
+
+   **Backend Server**:
    ```bash
+   cd server
+   npm install
+   npm start
+   ```
+
+   **Frontend App**:
+   ```bash
+   cd yourtube
+   npm install
    npm run dev
    ```
 
-5. **Access the application**:
+5. **Access Application**:
    Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
 ## 📜 Available Scripts
 
-In the project directory, you can run:
-
-| Command | Description |
-| :--- | :--- |
-| `npm run dev` | Starts the Next.js development server on `http://localhost:3000` |
-| `npm run build` | Compiles and builds the production bundle |
-| `npm run start` | Launches the Next.js production server |
-| `npm run lint` | Runs ESLint to check for code style & linting errors |
+| Directory | Command | Description |
+| :--- | :--- | :--- |
+| `yourtube/` | `npm run dev` | Starts Next.js development server on `http://localhost:3000` |
+| `yourtube/` | `npm run build` | Compiles frontend for production |
+| `yourtube/` | `npm run start` | Runs production Next.js build |
+| `server/` | `npm start` | Starts Express backend server on `http://localhost:5000` |
 
 ---
 
