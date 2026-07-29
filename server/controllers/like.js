@@ -34,7 +34,8 @@ export const getallLikedVideo = async (req, res) => {
         model: "videofiles",
       })
       .exec();
-    return res.status(200).json(likevideo);
+    const validLiked = likevideo.filter((item) => item && item.videoid);
+    return res.status(200).json(validLiked);
   } catch (error) {
     console.error(" error:", error);
     return res.status(500).json({ message: "Something went wrong" });
