@@ -7,7 +7,7 @@ import WatchPartyVideoGrid from "@/components/WatchPartyVideoGrid";
 import PartySidebar from "@/components/PartySidebar";
 import Comments from "@/components/Comments";
 import { Socket } from "socket.io-client";
-import { ArrowLeft, Loader2, Users, AlertCircle, Tv } from "lucide-react";
+import { ArrowLeft, Loader2, Users, AlertCircle, Tv, Copy, Check, Share2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -35,6 +35,32 @@ const WatchPartyPage = () => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
   const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyPartyLink = async () => {
+    const inviteUrl = window.location.href;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({
+          title: `Join my Watch Party: ${video?.videotitle || "Watch Party"}`,
+          text: `Join my Watch Party on YourTube!`,
+          url: inviteUrl,
+        });
+        toast.success("Watch party link shared!");
+        return;
+      } catch (err) {
+        // Fallback to clipboard
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+      toast.success("Watch party link copied to clipboard!");
+      setTimeout(() => setCopied(false), 2500);
+    } catch (_) {
+      toast.error("Failed to copy link");
+    }
+  };
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -188,7 +214,25 @@ const WatchPartyPage = () => {
           </div>
 
           <div className="flex items-center space-x-2 shrink-0">
-            <span className="flex items-center space-x-1 sm:space-x-1.5 bg-purple-950/80 border border-purple-800/50 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-semibold text-purple-300">
+            <button
+              onClick={handleCopyPartyLink}
+              className="flex items-center space-x-1.5 bg-purple-600 hover:bg-purple-700 text-white px-2.5 sm:px-3.5 py-1.5 rounded-full text-xs font-bold shadow-md transition-all active:scale-95 shrink-0"
+              title="Copy / Share Watch Party Invite Link"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Copy Invite Link</span>
+                </>
+              )}
+            </button>
+
+            <span className="flex items-center space-x-1 sm:space-x-1.5 bg-purple-950/80 border border-purple-800/50 px-2.5 sm:px-3 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold text-purple-300">
               <Users className="w-3.5 h-3.5" />
               <span>{participants.length} <span className="hidden xs:inline">Watching</span></span>
             </span>
@@ -200,6 +244,39 @@ const WatchPartyPage = () => {
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Left Column: Synchronized Video Player & Video Details */}
         <div className="lg:col-span-2 space-y-4 min-w-0">
+          {/* Quick Invite Bar for Mobile & All Screen Sizes */}
+          <div className="bg-zinc-900/90 border border-purple-900/40 rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-3 shadow-lg">
+            <div className="flex items-center space-x-2.5 min-w-0">
+              <div className="p-2 rounded-xl bg-purple-600/20 text-purple-400 shrink-0">
+                <Share2 className="w-4.5 h-4.5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm font-bold text-white truncate">
+                  Invite Friends to Watch Party
+                </p>
+                <p className="text-[11px] text-zinc-400 truncate">
+                  Share link to let anyone join this party
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleCopyPartyLink}
+              className="flex items-center space-x-1.5 bg-purple-600 hover:bg-purple-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 shadow-md transition-all active:scale-95"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-300" />
+                  <span>Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  <span>Copy Link</span>
+                </>
+              )}
+            </button>
+          </div>
+
           <div className="relative">
             {socket && (
               <WatchPartyPlayer

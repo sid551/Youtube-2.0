@@ -62,12 +62,29 @@ export default function PartySidebar({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  const handleCopyLink = () => {
+  const handleCopyLink = async () => {
     const inviteUrl = `${window.location.origin}/watch-party/${roomId}`;
-    navigator.clipboard.writeText(inviteUrl);
-    setCopied(true);
-    toast.success("Watch party invite link copied to clipboard!");
-    setTimeout(() => setCopied(false), 2500);
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({
+          title: `Join my Watch Party: ${videoTitle || "Watch Party"}`,
+          text: `Join my Watch Party on YourTube!`,
+          url: inviteUrl,
+        });
+        toast.success("Watch party invite link shared!");
+        return;
+      } catch (err) {
+        // Fallback to clipboard
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+      toast.success("Watch party invite link copied to clipboard!");
+      setTimeout(() => setCopied(false), 2500);
+    } catch (_) {
+      toast.error("Failed to copy link");
+    }
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
