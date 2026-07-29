@@ -47,7 +47,7 @@ export const sendEmailViaMailerSend = async ({ toEmail, toName, subject, html, t
     try {
       const parsed = JSON.parse(responseText);
       errMsg = parsed.message || errMsg;
-    } catch (_) {}
+    } catch (_) { }
     throw new Error(errMsg);
   }
 
