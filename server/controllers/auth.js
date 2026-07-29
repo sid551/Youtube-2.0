@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
 import Razorpay from "razorpay";
 import crypto from "crypto";
-import nodemailer from "nodemailer";
 import users from "../Modals/Auth.js";
 import video from "../Modals/video.js";
 import {

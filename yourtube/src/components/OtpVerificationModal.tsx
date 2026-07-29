@@ -10,7 +10,6 @@ interface OtpVerificationModalProps {
   isOpen: boolean;
   email: string;
   onVerify: (otp: string) => Promise<void>;
-  onResend?: () => Promise<void>;
   onClose: () => void;
 }
 

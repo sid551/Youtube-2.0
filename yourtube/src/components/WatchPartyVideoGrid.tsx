@@ -14,7 +14,6 @@ import {
   X,
   MonitorUp,
   MonitorOff,
-  Tv,
   CircleDot,
   Square,
 } from "lucide-react";

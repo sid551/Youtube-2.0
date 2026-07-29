@@ -7,7 +7,6 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
-  sendEmailVerification,
 } from "firebase/auth";
 import { useState, useEffect, useRef, useContext, createContext } from "react";
 import { provider, auth } from "./firebase";
