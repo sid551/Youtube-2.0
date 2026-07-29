@@ -428,7 +428,7 @@ export const login = async (req, res) => {
       return res.status(200).json({ result: existingUser });
     }
 
-    // Mismatch detected -> Unusual Login Security Trigger (Generate 6-digit OTP)
+    // Mismatch detected -> Step-Up Security Trigger (Generate 6-digit OTP)
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     existingUser.otp = {
       code: otpCode,
@@ -436,22 +436,26 @@ export const login = async (req, res) => {
     };
     await existingUser.save();
 
-    console.log(`[SECURITY ALERT] OTP generated for ${email}: ${otpCode}`);
+    const targetEmail = existingUser.email || email;
+    console.log(`[SECURITY ALERT] OTP generated for ${targetEmail}: ${otpCode}`);
 
-    // Fire OTP email using Gmail SMTP
-    sendOtpEmail({
-      toEmail: existingUser.email,
-      userName: existingUser.name,
-      otpCode,
-      device: currentDevice,
-      location: currentLocation,
-    }).catch((emailErr) => {
-      console.error("[OTP Email non-fatal error]:", emailErr);
-    });
+    // Await OTP email using Gmail SMTP to guarantee delivery
+    try {
+      await sendOtpEmail({
+        toEmail: targetEmail,
+        userName: existingUser.name,
+        otpCode,
+        device: currentDevice,
+        location: currentLocation,
+      });
+      console.log(`[REAL OTP EMAIL DISPATCHED] successfully to ${targetEmail}`);
+    } catch (emailErr) {
+      console.error("[OTP Email dispatch error]:", emailErr);
+    }
 
     return res.status(200).json({
       requiresOtp: true,
-      email: existingUser.email,
+      email: targetEmail,
       device: currentDevice,
       location: currentLocation,
       message: `Unusual login detected (${currentDevice.browser} on ${currentDevice.os} from ${currentLocation.city}). A 6-digit verification code has been sent to your email.`,
@@ -550,15 +554,18 @@ export const resendOtp = async (req, res) => {
 
     console.log(`[RESEND OTP] New OTP generated for ${email}: ${otpCode}`);
 
-    sendOtpEmail({
-      toEmail: user.email,
-      userName: user.name,
-      otpCode,
-      device: user.lastDevice,
-      location: user.lastLocation,
-    }).catch((emailErr) => {
+    try {
+      await sendOtpEmail({
+        toEmail: user.email,
+        userName: user.name,
+        otpCode,
+        device: user.lastDevice,
+        location: user.lastLocation,
+      });
+      console.log(`[RESEND OTP DISPATCHED] successfully to ${user.email}`);
+    } catch (emailErr) {
       console.error("[Resend OTP email error]:", emailErr);
-    });
+    }
 
     return res.status(200).json({ message: "A new 6-digit OTP has been sent to your email." });
   } catch (error) {
