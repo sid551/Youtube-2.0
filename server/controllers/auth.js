@@ -87,6 +87,49 @@ const sendEmail = async ({ toEmail, fromName, subject, html }) => {
   console.log(`[EMAIL NOTICE] No SMTP configured. Skipping email to ${toEmail}`);
 };
 
+const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) => {
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+      <div style="background:#dc2626;padding:24px;text-align:center">
+        <h1 style="color:#fff;margin:0;font-size:24px">YourTube</h1>
+        <p style="color:#fecaca;margin:4px 0 0">Security Verification Code</p>
+      </div>
+      <div style="padding:32px">
+        <p style="font-size:16px;color:#111827">Hi <strong>${userName || "User"}</strong>,</p>
+        <p style="color:#374151">We detected a login attempt from a new location or device:</p>
+        <ul style="color:#374151;line-height:1.6">
+          <li><strong>Device:</strong> ${device?.browser || "Unknown"} on ${device?.os || "Unknown"}</li>
+          <li><strong>Location:</strong> ${location?.city || "Unknown"}, ${location?.country || "Unknown"}</li>
+        </ul>
+        <p style="color:#374151">Use the following 6-digit verification code to complete your login:</p>
+        <div style="background:#f3f4f6;padding:16px;text-align:center;border-radius:8px;margin:20px 0;letter-spacing:6px;font-size:32px;font-weight:bold;color:#dc2626">
+          ${otpCode}
+        </div>
+        <p style="color:#6b7280;font-size:14px">This code is valid for 10 minutes. If you did not initiate this login attempt, please secure your account immediately.</p>
+      </div>
+      <div style="background:#f9fafb;padding:16px;text-align:center;color:#9ca3af;font-size:12px">
+        &copy; ${new Date().getFullYear()} YourTube. All rights reserved.
+      </div>
+    </div>
+  `;
+
+  console.log(`\n==================================================`);
+  console.log(`[SECURITY OTP GENERATED] User: ${toEmail} | Code: ${otpCode}`);
+  console.log(`==================================================\n`);
+
+  try {
+    await sendEmail({
+      toEmail,
+      fromName: "YourTube Security",
+      subject: `YourTube Security Verification Code: ${otpCode}`,
+      html,
+    });
+    console.log(`[OTP EMAIL DISPATCHED] to ${toEmail}`);
+  } catch (err) {
+    console.error(`[OTP EMAIL FAILED] ❌ ${err.message}`);
+  }
+};
+
 // Helper to calculate time-based theme in Indian Standard Time (IST, UTC+5:30)
 // If login time is between 10:00 AM and 12:00 PM IST (inclusive), theme is "light", otherwise "dark".
 export const calculateIstTimeBasedTheme = () => {
@@ -109,7 +152,6 @@ export const calculateIstTimeBasedTheme = () => {
   return isLightTime ? "light" : "dark";
 };
 
-// Helper to parse Device info (Browser + OS)
 // Helper to parse Device info (Browser + OS + DeviceId)
 const parseDeviceInfo = (req) => {
   const ua = req.headers["user-agent"] || "";
@@ -394,20 +436,23 @@ export const login = async (req, res) => {
 
     console.log(`[SECURITY ALERT] OTP generated for ${email}: ${otpCode}`);
 
-    // Mismatch detected -> Step-Up Security Trigger via Firebase Auth
-    existingUser.otp = {
-      requestedAt: new Date(),
-    };
-    await existingUser.save();
-
-    console.log(`[SECURITY ALERT] Step-Up verification requested for ${email} via Firebase Auth`);
+    // Fire OTP email using Gmail SMTP
+    sendOtpEmail({
+      toEmail: existingUser.email,
+      userName: existingUser.name,
+      otpCode,
+      device: currentDevice,
+      location: currentLocation,
+    }).catch((emailErr) => {
+      console.error("[OTP Email non-fatal error]:", emailErr);
+    });
 
     return res.status(200).json({
       requiresOtp: true,
       email: existingUser.email,
       device: currentDevice,
       location: currentLocation,
-      message: `Unusual login detected (${currentDevice.browser} on ${currentDevice.os} from ${currentLocation.city}). Verification requested via Firebase Authentication.`,
+      message: `Unusual login detected (${currentDevice.browser} on ${currentDevice.os} from ${currentLocation.city}). A 6-digit verification code has been sent to your email.`,
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -417,10 +462,10 @@ export const login = async (req, res) => {
 
 // POST /user/verify-otp — confirm verification and mark current device as trusted
 export const verifyOtp = async (req, res) => {
-  const { email, device, location } = req.body;
+  const { email, otp, device, location } = req.body;
 
-  if (!email) {
-    return res.status(400).json({ message: "Email is required" });
+  if (!email || otp === undefined || otp === null) {
+    return res.status(400).json({ message: "Email and OTP code are required" });
   }
 
   try {
@@ -429,8 +474,21 @@ export const verifyOtp = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Clear verification request and register current device into trustedDevices array
-    user.otp = { code: null, expiresAt: null, requestedAt: null };
+    const cleanInputOtp = String(otp).trim();
+    const cleanStoredOtp =
+      user.otp && user.otp.code ? String(user.otp.code).trim() : null;
+
+    if (
+      !cleanStoredOtp ||
+      cleanStoredOtp !== cleanInputOtp ||
+      !user.otp?.expiresAt ||
+      new Date() > new Date(user.otp.expiresAt)
+    ) {
+      return res.status(400).json({ message: "Invalid or expired OTP code" });
+    }
+
+    // OTP is valid! Clear OTP and add/update device in trustedDevices array
+    user.otp = { code: null, expiresAt: null };
     if (device) user.lastDevice = device;
     if (location) user.lastLocation = location;
 
@@ -467,7 +525,7 @@ export const verifyOtp = async (req, res) => {
   }
 };
 
-// POST /user/resend-otp — trigger resend response
+// POST /user/resend-otp — resend OTP code to the given email
 export const resendOtp = async (req, res) => {
   const { email } = req.body;
 
@@ -481,7 +539,26 @@ export const resendOtp = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    return res.status(200).json({ message: "Verification link sent via Firebase." });
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otp = {
+      code: otpCode,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 mins
+    };
+    await user.save();
+
+    console.log(`[RESEND OTP] New OTP generated for ${email}: ${otpCode}`);
+
+    sendOtpEmail({
+      toEmail: user.email,
+      userName: user.name,
+      otpCode,
+      device: user.lastDevice,
+      location: user.lastLocation,
+    }).catch((emailErr) => {
+      console.error("[Resend OTP email error]:", emailErr);
+    });
+
+    return res.status(200).json({ message: "A new 6-digit OTP has been sent to your email." });
   } catch (error) {
     console.error("resendOtp error:", error);
     return res.status(500).json({ message: "Something went wrong", error: error.message });

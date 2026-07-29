@@ -241,13 +241,11 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  const verifyOtpCode = async () => {
+  const verifyOtpCode = async (otpCode) => {
     try {
-      if (auth.currentUser) {
-        await auth.currentUser.reload();
-      }
       const res = await axiosInstance.post("/user/verify-otp", {
         email: otpState.email,
+        otp: otpCode,
         device: otpState.device,
         location: otpState.location,
       });
@@ -263,7 +261,7 @@ export const UserProvider = ({ children }) => {
         });
       }
     } catch (err) {
-      const msg = err?.response?.data?.message || "Verification failed";
+      const msg = err?.response?.data?.message || "Invalid OTP code";
       toast.error(msg);
       throw err;
     }
