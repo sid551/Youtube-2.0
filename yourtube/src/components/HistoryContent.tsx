@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { formatDistanceToNow } from "date-fns";
 import { MoreVertical, X, Clock } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -50,11 +51,12 @@ export default function HistoryContent() {
 
   const handleRemoveFromHistory = async (historyId: string) => {
     try {
-      console.log("Removing from history:", historyId);
-
-      setHistory(history.filter((item) => item._id !== historyId));
+      await axiosInstance.delete(`/history/${historyId}`);
+      setHistory((prev) => prev.filter((item) => item._id !== historyId));
+      toast.success("Removed from watch history");
     } catch (error) {
       console.error("Error removing from history:", error);
+      toast.error("Failed to remove from watch history");
     }
   };
 
