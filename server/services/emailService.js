@@ -1,9 +1,50 @@
 import nodemailer from "nodemailer";
 
 /**
+ * Brevo REST API Email Transport (Primary — HTTPS Port 443 — 300 free emails/day to ANY recipient)
+ * Endpoint: POST https://api.brevo.com/v3/smtp/email
+ */
+export const sendEmailViaBrevo = async ({ toEmail, toName, fromName, subject, html }) => {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) {
+    throw new Error("BREVO_API_KEY not configured in environment variables");
+  }
+
+  const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER || "noreply@yourtube.com";
+  const senderName = process.env.BREVO_SENDER_NAME || fromName || "YourTube Platform";
+
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "api-key": apiKey,
+      "Content-Type": "application/json",
+      "accept": "application/json",
+    },
+    body: JSON.stringify({
+      sender: { name: senderName, email: senderEmail },
+      to: [{ email: toEmail, name: toName || toEmail.split("@")[0] }],
+      subject,
+      htmlContent: html,
+    }),
+  });
+
+  const responseText = await res.text().catch(() => "");
+  if (!res.ok) {
+    console.error(`[BREVO ERROR] HTTP ${res.status} — ${responseText}`);
+    let errMsg = `Brevo HTTP ${res.status}`;
+    try {
+      const parsed = JSON.parse(responseText);
+      errMsg = parsed.message || errMsg;
+    } catch (_) {}
+    throw new Error(errMsg);
+  }
+
+  console.log(`[BREVO SUCCESS] Email sent to ${toEmail}`);
+  return true;
+};
+
+/**
  * MailerSend REST API Email Transport
- * Endpoint: POST https://api.mailersend.com/v1/email
- * Port: 443 (HTTPS - Render compatible)
  */
 export const sendEmailViaMailerSend = async ({ toEmail, toName, subject, html, text }) => {
   const apiKey = process.env.MAILERSEND_API_KEY;
@@ -47,7 +88,7 @@ export const sendEmailViaMailerSend = async ({ toEmail, toName, subject, html, t
     try {
       const parsed = JSON.parse(responseText);
       errMsg = parsed.message || errMsg;
-    } catch (_) { }
+    } catch (_) {}
     throw new Error(errMsg);
   }
 
@@ -56,29 +97,40 @@ export const sendEmailViaMailerSend = async ({ toEmail, toName, subject, html, t
 };
 
 /**
- * Fallback email transport if MailerSend key is missing or for local dev
+ * Fallback email transport (MailerSend -> Resend -> Gmail SMTP)
  */
-const sendFallbackEmail = async ({ toEmail, fromName, subject, html }) => {
-  // Try Brevo REST API fallback if present
-  if (process.env.BREVO_API_KEY) {
-    const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER || "noreply@yourtube.com";
-    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-      method: "POST",
-      headers: {
-        "api-key": process.env.BREVO_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        sender: { name: fromName, email: senderEmail },
-        to: [{ email: toEmail }],
-        subject,
-        htmlContent: html,
-      }),
-    });
-    if (res.ok) {
-      console.log(`[BREVO FALLBACK SUCCESS] Email sent to ${toEmail}`);
+const sendFallbackEmail = async ({ toEmail, fromName, subject, html, text, toName }) => {
+  // Try MailerSend REST API fallback
+  if (process.env.MAILERSEND_API_KEY) {
+    try {
+      await sendEmailViaMailerSend({ toEmail, toName, subject, html, text });
       return;
+    } catch (err) {
+      console.warn(`[MAILERSEND FALLBACK] MailerSend failed (${err.message}).`);
     }
+  }
+
+  // Try Resend REST API fallback (HTTPS Port 443 — Render compatible)
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: `${fromName} <onboarding@resend.dev>`,
+          to: [toEmail],
+          subject,
+          html,
+        }),
+      });
+      if (res.ok) {
+        console.log(`[RESEND FALLBACK SUCCESS] Email sent to ${toEmail}`);
+        return;
+      }
+    } catch (_) {}
   }
 
   // Try Gmail SMTP fallback
@@ -107,19 +159,20 @@ const sendFallbackEmail = async ({ toEmail, fromName, subject, html }) => {
 };
 
 /**
- * Unified Transporter Entrypoint
+ * Unified Transporter Entrypoint — Priority: Brevo -> MailerSend -> Resend -> Gmail SMTP
  */
 export const sendEmail = async ({ toEmail, toName, fromName = "YourTube Platform", subject, html, text }) => {
-  if (process.env.MAILERSEND_API_KEY) {
+  // 1. Primary: Brevo REST API (HTTPS Port 443 — 300 free emails/day to ANY recipient)
+  if (process.env.BREVO_API_KEY) {
     try {
-      await sendEmailViaMailerSend({ toEmail, toName, subject, html, text });
+      await sendEmailViaBrevo({ toEmail, toName, fromName, subject, html });
       return;
     } catch (err) {
-      console.warn(`[MAILERSEND FALLBACK] MailerSend failed (${err.message}). Trying fallback transport...`);
+      console.warn(`[BREVO FALLBACK] Brevo failed (${err.message}). Trying fallback transport...`);
     }
   }
 
-  await sendFallbackEmail({ toEmail, fromName, subject, html });
+  await sendFallbackEmail({ toEmail, fromName, subject, html, text, toName });
 };
 
 /**
