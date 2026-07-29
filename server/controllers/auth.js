@@ -4,9 +4,10 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 import users from "../Modals/Auth.js";
 import video from "../Modals/video.js";
-
-
-// Plan feature definitions (single source of truth)
+import {
+  sendSubscriptionConfirmationEmail,
+  sendSecurityOtpEmail,
+} from "../services/emailService.js";
 export const PLAN_FEATURES = {
   free: {
     price: 0,
@@ -57,157 +58,6 @@ const getRazorpay = () => {
     });
   }
   return _razorpay;
-};
-
-// ── Resend REST API email sender (HTTPS Port 443 — Render Compatible) ──
-const sendEmailViaResend = async ({ toEmail, fromName, subject, html }) => {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("RESEND_API_KEY not configured");
-
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: `${fromName} <onboarding@resend.dev>`,
-      to: [toEmail],
-      subject,
-      html,
-    }),
-  });
-
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || JSON.stringify(data));
-  }
-  console.log(`[RESEND API SUCCESS] Email sent to ${toEmail}`);
-};
-
-// ── Brevo REST API email sender (HTTPS Port 443 — Render Compatible) ──
-const sendEmailViaBrevo = async ({ toEmail, fromName, subject, html }) => {
-  const apiKey = process.env.BREVO_API_KEY;
-  if (!apiKey) throw new Error("BREVO_API_KEY not configured");
-
-  const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER || "noreply@yourtube.com";
-
-  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: {
-      "api-key": apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      sender: { name: fromName, email: senderEmail },
-      to: [{ email: toEmail }],
-      subject,
-      htmlContent: html,
-    }),
-  });
-
-  const responseText = await res.text().catch(() => "");
-  if (!res.ok) {
-    let errMsg = `HTTP ${res.status}`;
-    try { errMsg = JSON.parse(responseText).message || errMsg; } catch (_) {}
-    throw new Error(errMsg);
-  }
-  console.log(`[BREVO API SUCCESS] Email sent to ${toEmail}`);
-};
-
-// ── Multi-Transport Email Sender (Resend REST -> Brevo REST -> Gmail SMTP) ──
-const sendEmail = async ({ toEmail, fromName, subject, html }) => {
-  // 1. Try Resend REST API (HTTPS Port 443 — works on Render free tier)
-  if (process.env.RESEND_API_KEY) {
-    try {
-      await sendEmailViaResend({ toEmail, fromName, subject, html });
-      return;
-    } catch (err) {
-      console.warn(`[RESEND FALLBACK] Resend failed (${err.message}). Trying next transport...`);
-    }
-  }
-
-  // 2. Try Brevo REST API (HTTPS Port 443 — works on Render free tier)
-  if (process.env.BREVO_API_KEY) {
-    try {
-      await sendEmailViaBrevo({ toEmail, fromName, subject, html });
-      return;
-    } catch (err) {
-      console.warn(`[BREVO FALLBACK] Brevo failed (${err.message}). Trying Gmail SMTP...`);
-    }
-  }
-
-  // 3. Gmail SMTP (For Localhost Dev)
-  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    try {
-      const transporter = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 465,
-        secure: true,
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-      });
-
-      await transporter.sendMail({
-        from: `"${fromName}" <${process.env.EMAIL_USER}>`,
-        to: toEmail,
-        subject,
-        html,
-      });
-      console.log(`[GMAIL SMTP SUCCESS] Email sent to ${toEmail}`);
-      return;
-    } catch (smtpErr) {
-      console.error(`[GMAIL SMTP ERROR] ❌ ${smtpErr.message}`);
-      throw new Error(`Email sending failed via Gmail SMTP (${smtpErr.message})`);
-    }
-  }
-
-  console.log(`[EMAIL NOTICE] No working email transport configured for ${toEmail}`);
-};
-
-const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) => {
-  const html = `
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
-      <div style="background:#dc2626;padding:24px;text-align:center">
-        <h1 style="color:#fff;margin:0;font-size:24px">YourTube</h1>
-        <p style="color:#fecaca;margin:4px 0 0">Security Verification Code</p>
-      </div>
-      <div style="padding:32px">
-        <p style="font-size:16px;color:#111827">Hi <strong>${userName || "User"}</strong>,</p>
-        <p style="color:#374151">We detected a login attempt from a new location or device:</p>
-        <ul style="color:#374151;line-height:1.6">
-          <li><strong>Device:</strong> ${device?.browser || "Unknown"} on ${device?.os || "Unknown"}</li>
-          <li><strong>Location:</strong> ${location?.city || "Unknown"}, ${location?.country || "Unknown"}</li>
-        </ul>
-        <p style="color:#374151">Use the following 6-digit verification code to complete your login:</p>
-        <div style="background:#f3f4f6;padding:16px;text-align:center;border-radius:8px;margin:20px 0;letter-spacing:6px;font-size:32px;font-weight:bold;color:#dc2626">
-          ${otpCode}
-        </div>
-        <p style="color:#6b7280;font-size:14px">This code is valid for 10 minutes. If you did not initiate this login attempt, please secure your account immediately.</p>
-      </div>
-      <div style="background:#f9fafb;padding:16px;text-align:center;color:#9ca3af;font-size:12px">
-        &copy; ${new Date().getFullYear()} YourTube. All rights reserved.
-      </div>
-    </div>
-  `;
-
-  console.log(`\n==================================================`);
-  console.log(`[SECURITY OTP GENERATED] User: ${toEmail} | Code: ${otpCode}`);
-  console.log(`==================================================\n`);
-
-  try {
-    await sendEmail({
-      toEmail,
-      fromName: "YourTube Security",
-      subject: `YourTube Security Verification Code: ${otpCode}`,
-      html,
-    });
-    console.log(`[OTP EMAIL DISPATCHED] to ${toEmail}`);
-  } catch (err) {
-    console.error(`[OTP EMAIL FAILED] ❌ ${err.message}`);
-  }
 };
 
 // Helper to calculate time-based theme in Indian Standard Time (IST, UTC+5:30)
@@ -517,9 +367,9 @@ export const login = async (req, res) => {
     const targetEmail = existingUser.email || email;
     console.log(`[SECURITY ALERT] OTP generated for ${targetEmail}: ${otpCode}`);
 
-    // Await OTP email using Gmail SMTP to guarantee delivery
+    // Await OTP email using MailerSend / emailService
     try {
-      await sendOtpEmail({
+      await sendSecurityOtpEmail({
         toEmail: targetEmail,
         userName: existingUser.name,
         otpCode,
@@ -633,7 +483,7 @@ export const resendOtp = async (req, res) => {
     console.log(`[RESEND OTP] New OTP generated for ${email}: ${otpCode}`);
 
     try {
-      await sendOtpEmail({
+      await sendSecurityOtpEmail({
         toEmail: user.email,
         userName: user.name,
         otpCode,
@@ -759,16 +609,18 @@ export const verifyPayment = async (req, res) => {
     }
     console.log(`[PAYMENT] Plan updated to '${plan}' for ${updatedUser.email}`);
 
-    // Send invoice email — fire non-blocking and log outcome
+    // Send Subscription Confirmation Email via MailerSend / emailService (non-blocking)
     const planInfo = PLAN_FEATURES[plan];
-    sendInvoiceEmail({
+    sendSubscriptionConfirmationEmail({
       toEmail: updatedUser.email,
-      userName: updatedUser.name || "there",
-      plan,
-      orderId: razorpay_order_id,
-      paymentId: razorpay_payment_id,
+      userName: updatedUser.name || "Valued Customer",
+      planLabel: planInfo.label,
       amount: planInfo.price,
-    }).catch((err) => console.error("[PAYMENT] Invoice email failed:", err.message));
+      paymentId: razorpay_payment_id,
+      orderId: razorpay_order_id,
+      purchaseDate: now,
+      expiryDate: expiresAt,
+    }).catch((err) => console.error("[PAYMENT] Confirmation email failed:", err.message));
 
     return res.status(200).json({
       message: "Payment verified. Plan upgraded!",
