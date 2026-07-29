@@ -127,7 +127,7 @@ export default function HistoryContent() {
                   {v.createdAt ? formatDistanceToNow(new Date(v.createdAt)) : "recently"} ago
                 </p>
                 <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-                  Watched {item.createdAt ? formatDistanceToNow(new Date(item.createdAt)) : "recently"} ago
+                  Watched {item.updatedAt || item.createdAt ? formatDistanceToNow(new Date(item.updatedAt || item.createdAt)) : "recently"} ago
                 </p>
               </div>
 

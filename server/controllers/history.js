@@ -8,17 +8,10 @@ export const handlehistory = async (req, res) => {
     return res.status(400).json({ message: "userId and videoId are required" });
   }
   try {
-    const existingHistory = await history.findOne({
-      viewer: userId,
-      videoid: videoId,
-    });
-
-    if (existingHistory) {
-      existingHistory.createdAt = new Date();
-      await existingHistory.save();
-    } else {
-      await history.create({ viewer: userId, videoid: videoId });
-    }
+    // Remove existing history entries for this video so it moves to top of history
+    await history.deleteMany({ viewer: userId, videoid: videoId });
+    // Insert new history record with current timestamp
+    await history.create({ viewer: userId, videoid: videoId });
 
     await video.findByIdAndUpdate(videoId, { $inc: { views: 1 } });
     return res.status(200).json({ history: true });
@@ -43,14 +36,14 @@ export const getallhistoryVideo = async (req, res) => {
   try {
     const historyvideo = await history
       .find({ viewer: userId })
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: -1, createdAt: -1 })
       .populate({
         path: "videoid",
         model: "videofiles",
       })
       .exec();
 
-    // Deduplicate by video ID so each video appears only once (most recent view)
+    // Deduplicate by video ID so each video appears only once (most recent view first)
     const seenVideoIds = new Set();
     const uniqueHistory = [];
 
