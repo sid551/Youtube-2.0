@@ -97,7 +97,7 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  const handleLoginResponse = async (data) => {
+  const handleLoginResponse = (data) => {
     if (data.requiresOtp) {
       otpPending.current = true;
       setOtpState({
@@ -106,20 +106,7 @@ export const UserProvider = ({ children }) => {
         device: data.device,
         location: data.location,
       });
-
-      if (auth.currentUser) {
-        try {
-          await sendEmailVerification(auth.currentUser);
-          toast.info(
-            "Unusual login detected. A verification link has been sent via Firebase Authentication."
-          );
-        } catch (err) {
-          console.error("Firebase sendEmailVerification error:", err);
-          toast.warning("Unusual login detected. Please verify your email.");
-        }
-      } else {
-        toast.warning("Unusual login detected. Security verification is required.");
-      }
+      toast.warning("Unusual login detected. A 6-digit verification code (OTP) has been sent to your email.");
       return false;
     }
     if (data.result) {
@@ -267,15 +254,6 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  const resendFirebaseVerification = async () => {
-    if (auth.currentUser) {
-      await sendEmailVerification(auth.currentUser);
-      toast.success("Verification email link re-sent via Firebase!");
-    } else {
-      toast.error("No active session found to resend verification.");
-    }
-  };
-
   const closeOtpModal = () => {
     otpPending.current = false;
     redirectHandled.current = false;
@@ -419,7 +397,6 @@ export const UserProvider = ({ children }) => {
         handlegooglesignin,
         handleEmailSignUp,
         handleEmailSignIn,
-        resendFirebaseVerification,
         updateTheme,
         resetTheme,
       }}
@@ -429,7 +406,6 @@ export const UserProvider = ({ children }) => {
         isOpen={otpState.isOpen}
         email={otpState.email}
         onVerify={verifyOtpCode}
-        onResend={resendFirebaseVerification}
         onClose={closeOtpModal}
       />
     </UserContext.Provider>
