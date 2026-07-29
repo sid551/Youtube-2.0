@@ -59,12 +59,14 @@ const getRazorpay = () => {
   return _razorpay;
 };
 
-// ── Standard SMTP Email Sender (for transactional invoices) ──
+// ── Standard SMTP Email Sender (Gmail SSL Port 465) ──
 const sendEmail = async ({ toEmail, fromName, subject, html }) => {
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
     try {
       const transporter = nodemailer.createTransport({
-        service: "gmail",
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASS,
