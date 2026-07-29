@@ -59,8 +59,85 @@ const getRazorpay = () => {
   return _razorpay;
 };
 
-// ── Standard SMTP Email Sender (Gmail SSL Port 465) ──
+// ── Resend REST API email sender (HTTPS Port 443 — Render Compatible) ──
+const sendEmailViaResend = async ({ toEmail, fromName, subject, html }) => {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error("RESEND_API_KEY not configured");
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: `${fromName} <onboarding@resend.dev>`,
+      to: [toEmail],
+      subject,
+      html,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || JSON.stringify(data));
+  }
+  console.log(`[RESEND API SUCCESS] Email sent to ${toEmail}`);
+};
+
+// ── Brevo REST API email sender (HTTPS Port 443 — Render Compatible) ──
+const sendEmailViaBrevo = async ({ toEmail, fromName, subject, html }) => {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) throw new Error("BREVO_API_KEY not configured");
+
+  const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER || "noreply@yourtube.com";
+
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "api-key": apiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      sender: { name: fromName, email: senderEmail },
+      to: [{ email: toEmail }],
+      subject,
+      htmlContent: html,
+    }),
+  });
+
+  const responseText = await res.text().catch(() => "");
+  if (!res.ok) {
+    let errMsg = `HTTP ${res.status}`;
+    try { errMsg = JSON.parse(responseText).message || errMsg; } catch (_) {}
+    throw new Error(errMsg);
+  }
+  console.log(`[BREVO API SUCCESS] Email sent to ${toEmail}`);
+};
+
+// ── Multi-Transport Email Sender (Resend REST -> Brevo REST -> Gmail SMTP) ──
 const sendEmail = async ({ toEmail, fromName, subject, html }) => {
+  // 1. Try Resend REST API (HTTPS Port 443 — works on Render free tier)
+  if (process.env.RESEND_API_KEY) {
+    try {
+      await sendEmailViaResend({ toEmail, fromName, subject, html });
+      return;
+    } catch (err) {
+      console.warn(`[RESEND FALLBACK] Resend failed (${err.message}). Trying next transport...`);
+    }
+  }
+
+  // 2. Try Brevo REST API (HTTPS Port 443 — works on Render free tier)
+  if (process.env.BREVO_API_KEY) {
+    try {
+      await sendEmailViaBrevo({ toEmail, fromName, subject, html });
+      return;
+    } catch (err) {
+      console.warn(`[BREVO FALLBACK] Brevo failed (${err.message}). Trying Gmail SMTP...`);
+    }
+  }
+
+  // 3. Gmail SMTP (For Localhost Dev)
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
     try {
       const transporter = nodemailer.createTransport({
@@ -86,7 +163,8 @@ const sendEmail = async ({ toEmail, fromName, subject, html }) => {
       throw new Error(`Email sending failed via Gmail SMTP (${smtpErr.message})`);
     }
   }
-  console.log(`[EMAIL NOTICE] No SMTP configured. Skipping email to ${toEmail}`);
+
+  console.log(`[EMAIL NOTICE] No working email transport configured for ${toEmail}`);
 };
 
 const sendOtpEmail = async ({ toEmail, userName, otpCode, device, location }) => {
